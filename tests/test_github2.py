@@ -187,7 +187,7 @@ class TestGitHub2(TestBaseBackend):
 
         enrich_backend = self.connectors[self.connector][2]()
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']
@@ -322,7 +322,7 @@ class TestGitHub2(TestBaseBackend):
                              % anonymize_url(self.es_con))
 
         time.sleep(5)  # HACK: Wait until github2 enrich index has been written
-        items = [item for item in enrich_backend.fetch()]
+        items = list(enrich_backend.fetch())
         self.assertEqual(len(items), 14)
         for item in items:
             self.assertNotIn('username:password', item['origin'])
@@ -331,8 +331,11 @@ class TestGitHub2(TestBaseBackend):
                 self.assertTrue('demography_min_date' in item.keys())
                 self.assertTrue('demography_max_date' in item.keys())
 
-        r = enrich_backend.elastic.requests.get(enrich_backend.elastic.index_url + "/_alias",
-                                                headers=HEADER_JSON, verify=False)
+        r = enrich_backend.elastic.requests.get(
+            f"{enrich_backend.elastic.index_url}/_alias",
+            headers=HEADER_JSON,
+            verify=False,
+        )
         self.assertIn(alias, r.json()[enrich_backend.elastic.index]['aliases'])
 
     def test_copy_raw_fields(self):

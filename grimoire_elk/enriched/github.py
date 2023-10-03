@@ -109,13 +109,14 @@ class GitHubEnrich(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_onion)
-        self.studies.append(self.enrich_pull_requests)
-        self.studies.append(self.enrich_geolocation)
-        self.studies.append(self.enrich_extra_data)
-        self.studies.append(self.enrich_backlog_analysis)
-        self.studies.append(self.enrich_demography)
+        self.studies = [
+            self.enrich_onion,
+            self.enrich_pull_requests,
+            self.enrich_geolocation,
+            self.enrich_extra_data,
+            self.enrich_backlog_analysis,
+            self.enrich_demography,
+        ]
 
     def set_elastic(self, elastic):
         self.elastic = elastic
@@ -140,11 +141,9 @@ class GitHubEnrich(Enrich):
         else:
             identity_types = []
         for identity in identity_types:
-            identity_attr = identity + "_data"
+            identity_attr = f"{identity}_data"
             if item[identity] and identity_attr in item:
-                # In user_data we have the full user data
-                user = self.get_sh_identity(item[identity_attr])
-                if user:
+                if user := self.get_sh_identity(item[identity_attr]):
                     yield user
 
     def get_sh_identity(self, item, identity_field=None):
@@ -166,8 +165,7 @@ class GitHubEnrich(Enrich):
         return identity
 
     def get_project_repository(self, eitem):
-        repo = eitem['origin']
-        return repo
+        return eitem['origin']
 
     def get_time_to_first_attention(self, item):
         """Get the first date at which a comment or reaction was made to the issue by someone
@@ -178,9 +176,7 @@ class GitHubEnrich(Enrich):
         reaction_dates = [str_to_datetime(reaction['created_at']) for reaction in item['reactions_data']
                           if item['user']['login'] != reaction['user']['login']]
         reaction_dates.extend(comment_dates)
-        if reaction_dates:
-            return min(reaction_dates)
-        return None
+        return min(reaction_dates, default=None)
 
     def get_time_to_merge_request_response(self, item):
         """Get the first date at which a review was made on the PR by someone
@@ -198,16 +194,15 @@ class GitHubEnrich(Enrich):
 
             review_dates.append(str_to_datetime(comment['created_at']))
 
-        if review_dates:
-            return min(review_dates)
-
-        return None
+        return min(review_dates, default=None)
 
     def get_latest_comment_date(self, item):
         """Get the date of the latest comment on the issue/pr"""
 
-        comment_dates = [str_to_datetime(comment['created_at']) for comment in item['comments_data']]
-        if comment_dates:
+        if comment_dates := [
+            str_to_datetime(comment['created_at'])
+            for comment in item['comments_data']
+        ]:
             return max(comment_dates)
         return None
 
@@ -228,8 +223,9 @@ class GitHubEnrich(Enrich):
         elif item['category'] == 'repository':
             rich_item = self.__get_rich_repo(item)
         else:
-            logger.error("[github] rich item not defined for GitHub category {}".format(
-                         item['category']))
+            logger.error(
+                f"[github] rich item not defined for GitHub category {item['category']}"
+            )
 
         self.add_repository_labels(rich_item)
         self.add_metadata_filter_raw(rich_item)
@@ -300,11 +296,11 @@ class GitHubEnrich(Enrich):
         HEADER_JSON = {"Content-Type": "application/json"}
 
         # issues raw index from which the data will be extracted
-        github_issues_raw_index = ocean_backend.elastic_url + "/" + raw_issues_index
-        issues_index_search_url = github_issues_raw_index + "/_search"
+        github_issues_raw_index = f"{ocean_backend.elastic_url}/{raw_issues_index}"
+        issues_index_search_url = f"{github_issues_raw_index}/_search"
 
         # pull_requests index search url in which the data is to be updated
-        enrich_index_search_url = self.elastic.index_url + "/_search"
+        enrich_index_search_url = f"{self.elastic.index_url}/_search"
 
         logger.info("[github] Doing enrich_pull_request study for index {}".format(
                     anonymize_url(self.elastic.index_url)))
@@ -349,7 +345,7 @@ class GitHubEnrich(Enrich):
         # Example:
         # epoch      timestamp count
         # 1533454641 13:07:21  276
-        count_url = enrich_backend.elastic_url + "/_cat/count/" + enrich_backend.elastic.index + "?v"
+        count_url = f"{enrich_backend.elastic_url}/_cat/count/{enrich_backend.elastic.index}?v"
         error_msg = "Cannot fetch number of items in {} Aborting.".format(enrich_backend.elastic.index)
         r = make_request(count_url, error_msg)
         num_pull_requests = int(r.text.split()[-1])
@@ -443,11 +439,11 @@ class GitHubEnrich(Enrich):
         pull_request = item['data']
 
         rich_pr['time_to_close_days'] = \
-            get_time_diff_days(pull_request['created_at'], pull_request['closed_at'])
+                get_time_diff_days(pull_request['created_at'], pull_request['closed_at'])
 
         if pull_request['state'] != 'closed':
             rich_pr['time_open_days'] = \
-                get_time_diff_days(pull_request['created_at'], datetime_utcnow().replace(tzinfo=None))
+                    get_time_diff_days(pull_request['created_at'], datetime_utcnow().replace(tzinfo=None))
         else:
             rich_pr['time_open_days'] = rich_pr['time_to_close_days']
 
@@ -476,15 +472,13 @@ class GitHubEnrich(Enrich):
             rich_pr["merge_author_domain"] = self.get_email_domain(merged_by['email']) if merged_by['email'] else None
             rich_pr['merge_author_org'] = merged_by['company']
             rich_pr['merge_author_location'] = merged_by['location']
-            rich_pr['merge_author_geolocation'] = None
         else:
             rich_pr['merge_author_name'] = None
             rich_pr['merge_author_login'] = None
             rich_pr["merge_author_domain"] = None
             rich_pr['merge_author_org'] = None
             rich_pr['merge_author_location'] = None
-            rich_pr['merge_author_geolocation'] = None
-
+        rich_pr['merge_author_geolocation'] = None
         rich_pr['id'] = pull_request['id']
         rich_pr['id_in_repo'] = pull_request['html_url'].split("/")[-1]
         rich_pr['repository'] = self.get_project_repository(rich_pr)
@@ -523,7 +517,7 @@ class GitHubEnrich(Enrich):
         if pull_request['review_comments'] != 0:
             min_review_date = self.get_time_to_merge_request_response(pull_request)
             rich_pr['time_to_merge_request_response'] = \
-                get_time_diff_days(str_to_datetime(pull_request['created_at']), min_review_date)
+                    get_time_diff_days(str_to_datetime(pull_request['created_at']), min_review_date)
 
         if self.prjs_map:
             rich_pr.update(self.get_item_project(rich_pr))
@@ -546,11 +540,11 @@ class GitHubEnrich(Enrich):
         issue = item['data']
 
         rich_issue['time_to_close_days'] = \
-            get_time_diff_days(issue['created_at'], issue['closed_at'])
+                get_time_diff_days(issue['created_at'], issue['closed_at'])
 
         if issue['state'] != 'closed':
             rich_issue['time_open_days'] = \
-                get_time_diff_days(issue['created_at'], datetime_utcnow().replace(tzinfo=None))
+                    get_time_diff_days(issue['created_at'], datetime_utcnow().replace(tzinfo=None))
         else:
             rich_issue['time_open_days'] = rich_issue['time_to_close_days']
 
@@ -580,15 +574,13 @@ class GitHubEnrich(Enrich):
             rich_issue["assignee_domain"] = self.get_email_domain(assignee['email']) if assignee['email'] else None
             rich_issue['assignee_org'] = assignee['company']
             rich_issue['assignee_location'] = assignee['location']
-            rich_issue['assignee_geolocation'] = None
         else:
             rich_issue['assignee_name'] = None
             rich_issue['assignee_login'] = None
             rich_issue["assignee_domain"] = None
             rich_issue['assignee_org'] = None
             rich_issue['assignee_location'] = None
-            rich_issue['assignee_geolocation'] = None
-
+        rich_issue['assignee_geolocation'] = None
         rich_issue['id'] = issue['id']
         rich_issue['id_in_repo'] = issue['html_url'].split("/")[-1]
         rich_issue['repository'] = self.get_project_repository(rich_issue)
@@ -624,7 +616,7 @@ class GitHubEnrich(Enrich):
         rich_issue['time_to_first_attention'] = None
         if issue['comments'] + issue['reactions']['total_count'] != 0:
             rich_issue['time_to_first_attention'] = \
-                get_time_diff_days(str_to_datetime(issue['created_at']),
+                    get_time_diff_days(str_to_datetime(issue['created_at']),
                                    self.get_time_to_first_attention(issue))
 
         rich_issue.update(self.get_grimoire_fields(issue['created_at'], "issue"))
@@ -656,12 +648,9 @@ class GitHubEnrich(Enrich):
 
     def __create_backlog_item(self, repository_url, repository_name, project, date, org_name, interval, label, map_label, issues):
 
-        average_opened_time = 0
-        if (len(issues) > 0):
-            average_opened_time = sum(issues) / len(issues)
-
+        average_opened_time = sum(issues) / len(issues) if (len(issues) > 0) else 0
         evolution_item = {
-            "uuid": "{}_{}_{}".format(date, repository_name, label),
+            "uuid": f"{date}_{repository_name}_{label}",
             "opened": len(issues),
             "average_opened_time": average_opened_time,
             "origin": repository_url,
@@ -670,7 +659,7 @@ class GitHubEnrich(Enrich):
             "interval_days": interval,
             "study_creation_date": date,
             "metadata__enriched_on": date,
-            "organization": org_name
+            "organization": org_name,
         }
 
         evolution_item.update(self.get_grimoire_fields(date, "stats"))
@@ -711,9 +700,7 @@ class GitHubEnrich(Enrich):
     @staticmethod
     def __has_user(user):
         """ Check if the user does exist"""
-        if user and user is not None and user != NO_USER_INFO:
-            return True
-        return False
+        return bool(user and user is not None and user != NO_USER_INFO)
 
     def enrich_backlog_analysis(self, ocean_backend, enrich_backend, no_incremental=False,
                                 out_index="github_enrich_backlog",
@@ -768,7 +755,9 @@ class GitHubEnrich(Enrich):
             body=get_unique_repository_with_project_name())
         repositories = [repo['key'] for repo in unique_repos['aggregations']['unique_repos'].get('buckets', [])]
 
-        logger.debug("[enrich-backlog-analysis] {} repositories to process".format(len(repositories)))
+        logger.debug(
+            f"[enrich-backlog-analysis] {len(repositories)} repositories to process"
+        )
 
         # create the index
         es_out = ElasticSearch(enrich_backend.elastic.url, out_index, mappings=Mapping)
@@ -783,7 +772,7 @@ class GitHubEnrich(Enrich):
             org_name = repository["organization"]
             repository_name = repository_url.split("/")[-1]
 
-            logger.debug("[enrich-backlog-analysis] Start analysis for {}".format(repository_url))
+            logger.debug(f"[enrich-backlog-analysis] Start analysis for {repository_url}")
 
             # get each day since repository creation
             dates = es_in.search(
@@ -808,25 +797,27 @@ class GitHubEnrich(Enrich):
                 last_item = evolution_item
                 last_date = str_to_datetime(
                     evolution_item['study_creation_date']).replace(tzinfo=None) \
-                    + relativedelta(days=interval_days)
+                        + relativedelta(days=interval_days)
                 average_opened_time = evolution_item['average_opened_time'] \
-                    + float(interval_days)
+                        + float(interval_days)
                 while last_date < today:
                     date = last_date.strftime('%Y-%m-%dT%H:%M:%S.000Z')
                     evolution_item = {}
                     evolution_item.update(last_item)
-                    evolution_item.update({
-                        "average_opened_time": average_opened_time,
-                        "study_creation_date": date,
-                        "uuid": "{}_{}_{}".format(date, repository_name, label),
-                    })
+                    evolution_item.update(
+                        {
+                            "average_opened_time": average_opened_time,
+                            "study_creation_date": date,
+                            "uuid": f"{date}_{repository_name}_{label}",
+                        }
+                    )
                     evolution_item.update(self.get_grimoire_fields(date, "stats"))
                     evolution_items.append(evolution_item)
                     last_date = last_date + relativedelta(days=interval_days)
                     average_opened_time = average_opened_time + float(interval_days)
 
                 # upload items to ES
-                if len(evolution_items) > 0:
+                if evolution_items:
                     num_items += len(evolution_items)
                     ins_items += es_out.bulk_upload(evolution_items, self.get_field_unique_id())
 

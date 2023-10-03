@@ -63,8 +63,7 @@ class MattermostEnrich(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_demography)
+        self.studies = [self.enrich_demography]
 
     def get_field_author(self):
         return "user_data"
@@ -89,12 +88,10 @@ class MattermostEnrich(Enrich):
 
         if 'first_name' in from_:
             name_parts = []
-            first_name = from_.get('first_name')
-            if first_name:
+            if first_name := from_.get('first_name'):
                 name_parts.append(first_name)
 
-            last_name = from_.get('last_name')
-            if last_name:
+            if last_name := from_.get('last_name'):
                 name_parts.append(last_name)
 
             composed_name = ' '.join(name_parts)
@@ -108,13 +105,12 @@ class MattermostEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        identity = self.get_sh_identity(item)
-        yield identity
+        yield self.get_sh_identity(item)
 
     def get_project_repository(self, eitem):
         # https://chat.openshift.io/8j366ft5affy3p36987pcugaoa
         tokens = eitem['origin'].rsplit("/", 1)
-        return tokens[0] + " " + tokens[1]
+        return f"{tokens[0]} {tokens[1]}"
 
     @metadata
     def get_rich_item(self, item):
@@ -131,11 +127,7 @@ class MattermostEnrich(Enrich):
         # data fields to copy
         copy_fields = ["message", "type", "reply_count", "hashtags", "is_pinned"]
         for f in copy_fields:
-            if f in message:
-                eitem[f] = message[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = message[f] if f in message else None
         eitem['message_analyzed'] = eitem['message']
 
         eitem['reaction_count'] = 0
@@ -153,8 +145,7 @@ class MattermostEnrich(Enrich):
             eitem['roles'] = user_data['roles']
             eitem['position'] = user_data['position']
             eitem['team_id'] = None  # not exists in Mattermost
-            timezone = user_data.get('timezone', None)
-            if timezone:
+            if timezone := user_data.get('timezone', None):
                 if timezone['useAutomaticTimezone']:
                     eitem['tz'] = timezone['automaticTimezone']
                 else:
@@ -165,7 +156,7 @@ class MattermostEnrich(Enrich):
             eitem['channel_id'] = channel_data['id']
             eitem['channel_create_at'] = unixtime_to_datetime(channel_data['create_at'] / 1000).isoformat()
             eitem['channel_delete_at'] = None if channel_data['delete_at'] == 0 else \
-                unixtime_to_datetime(channel_data['delete_at'] / 1000).isoformat()
+                    unixtime_to_datetime(channel_data['delete_at'] / 1000).isoformat()
             eitem['channel_update_at'] = unixtime_to_datetime(channel_data['update_at'] / 1000).isoformat()
             eitem['channel_member_count'] = None
             eitem['channel_message_count'] = channel_data['total_msg_count']
@@ -235,8 +226,5 @@ class MattermostEnrich(Enrich):
 
         for field in eitem.keys():
             if isinstance(eitem[field], bool):
-                if eitem[field]:
-                    eitem[field] = 1
-                else:
-                    eitem[field] = 0
+                eitem[field] = 1 if eitem[field] else 0
         return eitem  # not needed becasue we are modifying directly the dict

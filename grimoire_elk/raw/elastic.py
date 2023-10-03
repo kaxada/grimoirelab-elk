@@ -80,8 +80,7 @@ class ElasticOcean(ElasticItems):
         return "metadata__updated_on"
 
     def get_field_unique_id(self):
-        field = "uuid"
-        return field
+        return "uuid"
 
     def get_elastic_analyzers(self):
         """ Custom analyzers for our indexes  """
@@ -89,10 +88,7 @@ class ElasticOcean(ElasticItems):
         return None
 
     def get_last_update_from_es(self, filters_=None):
-        last_update = self.elastic.get_last_date(self.get_field_date(),
-                                                 filters_=filters_)
-
-        return last_update
+        return self.elastic.get_last_date(self.get_field_date(), filters_=filters_)
 
     def get_connector_name(self):
         """ Find the name for the current connector """
@@ -113,21 +109,21 @@ class ElasticOcean(ElasticItems):
         tokens = url.split(PRJ_JSON_FILTER_SEPARATOR)[1:]
 
         if len(tokens) > 1:
-            cause = "Too many filters defined for {}, only the first one is considered".format(url)
+            cause = f"Too many filters defined for {url}, only the first one is considered"
             logger.warning(cause)
 
         token = tokens[0]
         filter_tokens = token.split(PRJ_JSON_FILTER_OP_ASSIGNMENT)
 
         if len(filter_tokens) != 2:
-            cause = "Too many tokens after splitting for {} in {}".format(token, url)
+            cause = f"Too many tokens after splitting for {token} in {url}"
             logger.error(cause)
             raise ELKError(cause=cause)
 
         fltr_name = filter_tokens[0].strip()
         fltr_value = filter_tokens[1].strip()
 
-        params['filter-' + fltr_name] = fltr_value
+        params[f'filter-{fltr_name}'] = fltr_value
 
         return params
 
@@ -180,9 +176,9 @@ class ElasticOcean(ElasticItems):
                 self.last_update = self.get_last_update_from_es(filters_=filters_)
                 last_update = self.last_update
 
-            logger.info("[{}] Incremental from: {} for {}".format(
-                        self.perceval_backend.__class__.__name__.lower(),
-                        last_update, anonymize_url(self.perceval_backend.origin)))
+            logger.info(
+                f"[{self.perceval_backend.__class__.__name__.lower()}] Incremental from: {last_update} for {anonymize_url(self.perceval_backend.origin)}"
+            )
 
         offset = None
         if 'offset' in signature.parameters:
@@ -192,12 +188,13 @@ class ElasticOcean(ElasticItems):
                 offset = self.elastic.get_last_offset("offset", filters_=filters_)
 
             if offset is not None:
-                logger.info("[{}] Incremental from: {} offset, for {}".format(
-                            self.perceval_backend.__class__.__name__.lower(),
-                            offset, anonymize_url(self.perceval_backend.origin)))
+                logger.info(
+                    f"[{self.perceval_backend.__class__.__name__.lower()}] Incremental from: {offset} offset, for {anonymize_url(self.perceval_backend.origin)}"
+                )
             else:
-                logger.info("[{}] Not incremental".format(
-                            self.perceval_backend.__class__.__name__.lower()))
+                logger.info(
+                    f"[{self.perceval_backend.__class__.__name__.lower()}] Not incremental"
+                )
 
         params = {}
         # category and filter_classified params are shared
@@ -214,20 +211,14 @@ class ElasticOcean(ElasticItems):
         # and Perceval is executed
         if no_update:
             params['no_update'] = no_update
-            items = self.perceval_backend.fetch(**params)
         elif latest_items:
             params['latest_items'] = latest_items
-            items = self.perceval_backend.fetch(**params)
         elif last_update:
             last_update = last_update.replace(tzinfo=None)
             params['from_date'] = last_update
-            items = self.perceval_backend.fetch(**params)
         elif offset is not None:
             params['offset'] = offset
-            items = self.perceval_backend.fetch(**params)
-        else:
-            items = self.perceval_backend.fetch(**params)
-
+        items = self.perceval_backend.fetch(**params)
         self.feed_items(items)
         self.update_items()
 
@@ -265,11 +256,12 @@ class ElasticOcean(ElasticItems):
 
         total_time_min = (datetime.now() - task_init).total_seconds() / 60
 
-        logger.debug("[{}] Added {} items to index {}".format(
-                     self.perceval_backend.__class__.__name__.lower(),
-                     added, self.elastic.index))
-        logger.debug("[{}] Dropped {} items using drop_item filter".format(
-                     self.perceval_backend.__class__.__name__.lower(), drop))
+        logger.debug(
+            f"[{self.perceval_backend.__class__.__name__.lower()}] Added {added} items to index {self.elastic.index}"
+        )
+        logger.debug(
+            f"[{self.perceval_backend.__class__.__name__.lower()}] Dropped {drop} items using drop_item filter"
+        )
         logger.debug("[{}] Finished in {:.2f} min".format(
                      self.perceval_backend.__class__.__name__.lower(),
                      total_time_min))
@@ -281,9 +273,9 @@ class ElasticOcean(ElasticItems):
         if len(json_items) == 0:
             return
 
-        logger.debug("[{}] Adding items to Raw for {} ({} items)".format(
-                     self.perceval_backend.__class__.__name__.lower(),
-                     self, len(json_items)))
+        logger.debug(
+            f"[{self.perceval_backend.__class__.__name__.lower()}] Adding items to Raw for {self} ({len(json_items)} items)"
+        )
 
         field_id = self.get_field_unique_id()
 
@@ -297,8 +289,8 @@ class ElasticOcean(ElasticItems):
             version = info['backend_version']
             origin = info['origin']
 
-            logger.warning("[{}] {}/{} missing JSON items for backend {} [ver. {}], origin {}".format(
-                           self.perceval_backend.__class__.__name__.lower(),
-                           missing, len(json_items), name, version, origin))
+            logger.warning(
+                f"[{self.perceval_backend.__class__.__name__.lower()}] {missing}/{len(json_items)} missing JSON items for backend {name} [ver. {version}], origin {origin}"
+            )
 
         return inserted

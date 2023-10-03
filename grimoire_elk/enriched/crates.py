@@ -62,28 +62,19 @@ class CratesEnrich(Enrich):
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        identities = []
-
         field = self.get_field_author()
-        identities.append(self.get_sh_identity(item, field))
-
-        return identities
+        return [self.get_sh_identity(item, field)]
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-
-        identity['username'] = None
-        identity['email'] = None
-        identity['name'] = None
+        identity = {'username': None, 'email': None, 'name': None}
 
         user = item  # by default a specific user dict is expected
-        if isinstance(item, dict) and 'data' in item:
-            users = item['data'][identity_field]['users']
-            if not users:
-                return identity
-            else:
+        if isinstance(user, dict) and 'data' in user:
+            if users := user['data'][identity_field]['users']:
                 user = users[0]
 
+            else:
+                return identity
         if 'login' in user:
             identity['username'] = user['login']
         if 'name' in user:
@@ -137,10 +128,7 @@ class CratesEnrich(Enrich):
                        "updated_at", "created_at"]
 
         for f in copy_fields:
-            if f in crate:
-                eitem[f] = crate[f]
-            else:
-                eitem[f] = None
+            eitem[f] = crate[f] if f in crate else None
         # Fields which names are translated
         map_fields = {"description": "description_analyzed"}
         for fn in map_fields:

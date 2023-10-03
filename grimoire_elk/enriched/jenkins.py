@@ -80,7 +80,7 @@ class JenkinsEnrich(Enrich):
         """
         self.nodes_rename_file = nodes_rename_file
         self.__load_node_renames()
-        logger.info("[jenkins] Node rename file active: {}".format(nodes_rename_file))
+        logger.info(f"[jenkins] Node rename file active: {nodes_rename_file}")
 
     def __load_node_renames(self):
         # In OPNFV nodes could be renamed
@@ -96,9 +96,9 @@ class JenkinsEnrich(Enrich):
                     rename = action.split("merge into ")
                     if len(rename) > 1:
                         self.nodes_rename[name] = rename[1]
-                logger.debug("[jenkins] Total node renames: {}".format(len(self.nodes_rename.keys())))
+                logger.debug(f"[jenkins] Total node renames: {len(self.nodes_rename.keys())}")
         except FileNotFoundError:
-            logger.info("[jenkins] Node rename file not found {}".format(self.nodes_rename_file))
+            logger.info(f"[jenkins] Node rename file not found {self.nodes_rename_file}")
 
     def get_field_author(self):
         # In Jenkins there are no identities support
@@ -106,9 +106,7 @@ class JenkinsEnrich(Enrich):
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        identities = []
-
-        return identities
+        return []
 
     def has_identities(self):
         """ Return whether the enriched items contains identities """
@@ -147,13 +145,13 @@ class JenkinsEnrich(Enrich):
                 return extra_fields
 
             kind = components[1]
-            if kind == 'os':
+            if kind == 'deploy':
+                extra_fields['category'] = 'deploy'
+                extra_fields['installer'] = components[0]
+            elif kind == 'os':
                 extra_fields['category'] = 'parent/main'
                 extra_fields['installer'] = components[0]
                 extra_fields['scenario'] = '-'.join(components[2:-3])
-            elif kind == 'deploy':
-                extra_fields['category'] = 'deploy'
-                extra_fields['installer'] = components[0]
             else:
                 extra_fields['category'] = 'test'
                 extra_fields['testproject'] = components[0]
@@ -164,7 +162,7 @@ class JenkinsEnrich(Enrich):
             extra_fields['branch'] = components[-1]
         except IndexError as ex:
             # Just DEBUG level because it is just for OPNFV
-            logger.debug('[jenkins] Problems parsing job name {}'.format(job_name))
+            logger.debug(f'[jenkins] Problems parsing job name {job_name}')
             logger.debug(ex)
 
         return extra_fields
@@ -176,13 +174,10 @@ class JenkinsEnrich(Enrich):
         pattern = re.compile(regex, re.M | re.I)
         match = pattern.search(built_on)
         if match and len(match.groups()) >= 1:
-            node_name = match.group(1)
-        else:
-            msg = "[jenkins] Node name not extracted, using builtOn as it is: {}:{}".format(regex, built_on)
-            logger.warning(msg)
-            node_name = built_on
-
-        return node_name
+            return match.group(1)
+        msg = f"[jenkins] Node name not extracted, using builtOn as it is: {regex}:{built_on}"
+        logger.warning(msg)
+        return built_on
 
     @metadata
     def get_rich_item(self, item):
@@ -195,10 +190,7 @@ class JenkinsEnrich(Enrich):
         # data fields to copy
         copy_fields = ["fullDisplayName", "url", "result", "duration", "builtOn"]
         for f in copy_fields:
-            if f in build:
-                eitem[f] = build[f]
-            else:
-                eitem[f] = None
+            eitem[f] = build[f] if f in build else None
         # main node names
         if not eitem["builtOn"]:
             eitem["builtOn"] = self.MAIN_NODE_NAME

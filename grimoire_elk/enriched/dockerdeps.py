@@ -81,9 +81,7 @@ class Dockerdeps(Enrich):
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        identities = []
-
-        return identities
+        return []
 
     def has_identities(self):
         """ Return whether the enriched items contains identities """
@@ -110,7 +108,7 @@ class Dockerdeps(Enrich):
 
         # uuid
         uuid_sha1 = backend.uuid(eitem['file_path'], eitem['dependency'])
-        eitem['id'] = "{}_{}".format(eitem['commit_sha'], uuid_sha1)
+        eitem['id'] = f"{eitem['commit_sha']}_{uuid_sha1}"
         eitem.update(self.get_grimoire_fields(eitem["author_date"], "file"))
         self.add_repository_labels(eitem)
         self.add_metadata_filter_raw(eitem)
@@ -142,10 +140,8 @@ class Dockerdeps(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[dockerdeps] {}/{} missing items".format(
-                         missing, num_items))
+            logger.error(f"[dockerdeps] {missing}/{num_items} missing items")
         else:
-            logger.info("[dockerdeps] {} items inserted".format(
-                        num_items))
+            logger.info(f"[dockerdeps] {num_items} items inserted")
 
         return num_items

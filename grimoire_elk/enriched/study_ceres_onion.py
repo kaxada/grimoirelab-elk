@@ -87,15 +87,15 @@ class ESOnionConnector(ESConnector):
 
         for quarter in quarters:
 
-            logger.info("{} Quarter: {}".format(self.__log_prefix, quarter))
+            logger.info(f"{self.__log_prefix} Quarter: {quarter}")
 
             date_range = {self._timeframe_field: {'gte': quarter.start_time, 'lte': quarter.end_time}}
 
             orgs = self.__list_uniques(date_range, self.AUTHOR_MULTI_ORG_NAMES)
             if not orgs:
                 multi_org = False
-                logger.warning("{} Attribute {} not found, using {}".format(
-                    self.__log_prefix, self.AUTHOR_MULTI_ORG_NAMES, self.AUTHOR_ORG)
+                logger.warning(
+                    f"{self.__log_prefix} Attribute {self.AUTHOR_MULTI_ORG_NAMES} not found, using {self.AUTHOR_ORG}"
                 )
                 orgs = self.__list_uniques(date_range, self.AUTHOR_ORG)
 
@@ -111,7 +111,7 @@ class ESOnionConnector(ESConnector):
             # Get global data by Org
             for org_name in orgs:
 
-                logger.debug("{} Quarter: {}  Org: {}".format(self.__log_prefix, quarter, org_name))
+                logger.debug(f"{self.__log_prefix} Quarter: {quarter}  Org: {org_name}")
 
                 s = self.__build_search(date_range, org_name=org_name, multi_org=multi_org)
                 response = s.execute()
@@ -122,8 +122,7 @@ class ESOnionConnector(ESConnector):
             # Get project specific data
             for project in projects:
 
-                logger.debug("{} Quarter: {}  Project: {}".format(
-                             self.__log_prefix, quarter, project))
+                logger.debug(f"{self.__log_prefix} Quarter: {quarter}  Project: {project}")
 
                 # Global project
                 s = self.__build_search(date_range, project_name=project)
@@ -135,8 +134,9 @@ class ESOnionConnector(ESConnector):
                 # Split by Org
                 for org_name in orgs:
 
-                    logger.debug("{} Quarter: {}  Project: {}  Org: {}".format(
-                                 self.__log_prefix, quarter, project, org_name))
+                    logger.debug(
+                        f"{self.__log_prefix} Quarter: {quarter}  Project: {project}  Org: {org_name}"
+                    )
 
                     s = self.__build_search(date_range, project_name=project, org_name=org_name, multi_org=multi_org)
                     response = s.execute()
@@ -153,7 +153,7 @@ class ESOnionConnector(ESConnector):
             raise IOError("Cannot write, Connector created as Read Only")
 
         if len(items) == 0:
-            logger.info("{} Nothing to write".format(self.__log_prefix))
+            logger.info(f"{self.__log_prefix} Nothing to write")
             return
 
         # Uploading info to the new ES
@@ -162,7 +162,7 @@ class ESOnionConnector(ESConnector):
         for row_index in rows.keys():
             row = rows[row_index]
             item_id = row[self.AUTHOR_ORG] + '_' + row[self.PROJECT] + '_' \
-                + row[self.TIMEFRAME] + '_' + row[self.AUTHOR_UUID]
+                    + row[self.TIMEFRAME] + '_' + row[self.AUTHOR_UUID]
             item_id = item_id.replace(' ', '').lower()
 
             doc = {
@@ -173,7 +173,7 @@ class ESOnionConnector(ESConnector):
             }
 
             if (self._es_major == '7' and self._es_distribution == 'elasticsearch') or \
-               (self._es_major == '1' and self._es_distribution == 'opensearch'):
+                   (self._es_major == '1' and self._es_distribution == 'opensearch'):
                 doc.pop('_type')
 
             docs.append(doc)
@@ -196,7 +196,7 @@ class ESOnionConnector(ESConnector):
 
         # TODO exception and error handling
         helpers.bulk(self._es_conn, docs)
-        logger.debug("{} Written: {}".format(self.__log_prefix, len(docs)))
+        logger.debug(f"{self.__log_prefix} Written: {len(docs)}")
 
     def latest_enrichment_date(self):
         """Get the most recent enrichment date.
@@ -210,7 +210,7 @@ class ESOnionConnector(ESConnector):
 
         search = Search(using=self._es_conn, index=self._es_index)
         # from:to parameters (=> from: 0, size: 0)
-        search = search[0:0]
+        search = search[:0]
         search = search.aggs.metric('max_date', 'max', field='metadata__enriched_on')
 
         try:
@@ -218,8 +218,9 @@ class ESOnionConnector(ESConnector):
 
             aggs = response.to_dict()['aggregations']
             if aggs['max_date']['value'] is None:
-                logger.debug("{} No data for metadata__enriched_on field found in {} index".format(
-                             self.__log_prefix, self._es_index))
+                logger.debug(
+                    f"{self.__log_prefix} No data for metadata__enriched_on field found in {self._es_index} index"
+                )
 
             else:
                 # Incremental case: retrieve items from last item in ES write index
@@ -245,7 +246,7 @@ class ESOnionConnector(ESConnector):
             s = s.filter(q)
 
         # from:to parameters (=> from: 0, size: 0)
-        s = s[0:0]
+        s = s[:0]
 
         s.aggs.bucket(self.TIMEFRAME, 'date_histogram', field=self._timeframe_field,
                       interval='quarter', min_doc_count=1)
@@ -269,14 +270,10 @@ class ESOnionConnector(ESConnector):
         s = Search(using=self._es_conn, index=self._es_index)
         s = s.filter('range', **date_range)
         # from:to parameters (=> from: 0, size: 0)
-        s = s[0:0]
+        s = s[:0]
         s.aggs.bucket('uniques', 'terms', field=field_name, size=1000)
         response = s.execute()
-        uniques_list = []
-        for item in response.aggregations.uniques.buckets:
-            uniques_list.append(item.key)
-
-        return uniques_list
+        return [item.key for item in response.aggregations.uniques.buckets]
 
     def __build_search(self, date_range, project_name=None, org_name=None, multi_org=False):
         s = Search(using=self._es_conn, index=self._es_index)
@@ -293,7 +290,7 @@ class ESOnionConnector(ESConnector):
         s = s.filter('term', author_bot='false')
 
         # from:to parameters (=> from: 0, size: 0)
-        s = s[0:0]
+        s = s[:0]
 
         # Get author_name and most recent metadata__timestamp for quarter (should be enough per quarter,
         # computing it by user probably is not needed as we are going to recalculate the whole quarter)
@@ -301,10 +298,10 @@ class ESOnionConnector(ESConnector):
         # We are not keeping all metadata__* fields because we are grouping commits by author, so we can only
         # store one value per author.
         s.aggs.bucket(self.TIMEFRAME, 'date_histogram', field=self._timeframe_field, interval='quarter') \
-            .metric(self.LATEST_TS, 'max', field=self._sort_on_field)\
-            .bucket(self.AUTHOR_UUID, 'terms', field=self.AUTHOR_UUID, size=1000) \
-            .metric(self.CONTRIBUTIONS, 'cardinality', field=self.contribs_field, precision_threshold=40000)\
-            .bucket(self.AUTHOR_NAME, 'terms', field=self.AUTHOR_NAME, size=1)
+                .metric(self.LATEST_TS, 'max', field=self._sort_on_field)\
+                .bucket(self.AUTHOR_UUID, 'terms', field=self.AUTHOR_UUID, size=1000) \
+                .metric(self.CONTRIBUTIONS, 'cardinality', field=self.contribs_field, precision_threshold=40000)\
+                .bucket(self.AUTHOR_NAME, 'terms', field=self.AUTHOR_NAME, size=1)
 
         return s
 
@@ -321,14 +318,14 @@ class ESOnionConnector(ESConnector):
         name_list = []
         contribs_list = []
         latest_ts_list = []
-        logger.debug("{} timing: {}".format(self.__log_prefix, timing.key_as_string))
+        logger.debug(f"{self.__log_prefix} timing: {timing.key_as_string}")
 
         for author in timing[self.AUTHOR_UUID].buckets:
             latest_ts_list.append(timing[self.LATEST_TS].value_as_string)
             date_list.append(timing.key_as_string)
             uuid_list.append(author.key)
             if author[self.AUTHOR_NAME] and author[self.AUTHOR_NAME].buckets \
-                    and len(author[self.AUTHOR_NAME].buckets) > 0:
+                        and len(author[self.AUTHOR_NAME].buckets) > 0:
                 name_list.append(author[self.AUTHOR_NAME].buckets[0].key)
             else:
                 name_list.append("Unknown")
@@ -375,7 +372,7 @@ class OnionStudy(CeresBase):
         :param items_block: items to be processed. Expects to find a pandas DataFrame.
         """
 
-        logger.debug("{} Authors to process: {}".format(self.__log_prefix, len(items_block)))
+        logger.debug(f"{self.__log_prefix} Authors to process: {len(items_block)}")
 
         onion_enrich = Onion(items_block)
         df_onion = onion_enrich.enrich(member_column=ESOnionConnector.AUTHOR_UUID,
@@ -389,7 +386,7 @@ class OnionStudy(CeresBase):
         df_onion['data_source'] = self.data_source
         df_onion['grimoire_creation_date'] = df_onion[ESOnionConnector.TIMEFRAME]
 
-        logger.debug("{} Final new events: {}".format(self.__log_prefix, len(df_onion)))
+        logger.debug(f"{self.__log_prefix} Final new events: {len(df_onion)}")
 
         return self.ProcessResults(processed=len(df_onion), out_items=df_onion)
 
@@ -403,5 +400,4 @@ def onion_study(in_conn, out_conn, data_source):
     :return: number of documents written in ElasticSearch enriched index.
     """
     onion = OnionStudy(in_connector=in_conn, out_connector=out_conn, data_source=data_source)
-    ndocs = onion.analyze()
-    return ndocs
+    return onion.analyze()

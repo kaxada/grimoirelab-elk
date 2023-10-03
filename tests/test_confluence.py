@@ -138,7 +138,7 @@ class TestConfluence(TestBaseBackend):
 
         enrich_backend = self.connectors[self.connector][2]()
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']
@@ -186,7 +186,7 @@ class TestConfluence(TestBaseBackend):
     def test_raw_fix_item(self):
         """Test fix item to anonymize fields"""
 
-        with open(os.path.join("data", self.connector + "_with_credentials.json")) as f:
+        with open(os.path.join("data", f"{self.connector}_with_credentials.json")) as f:
             self.items = json.load(f)
 
         self.ocean_backend = self.connectors[self.connector][1](None)
@@ -208,7 +208,7 @@ class TestConfluence(TestBaseBackend):
     def test_items_to_raw_anonymized_fields(self):
         """Test that the documents stored in the raw index the fields are anonymized"""
 
-        with open(os.path.join("data", self.connector + "_with_credentials.json")) as f:
+        with open(os.path.join("data", f"{self.connector}_with_credentials.json")) as f:
             self.items = json.load(f)
 
         self.ocean_backend = self.connectors[self.connector][1](None)

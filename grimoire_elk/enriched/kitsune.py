@@ -66,8 +66,6 @@ class KitsuneEnrich(Enrich):
         return "creator"
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-
         user = item
         if isinstance(item, dict) and 'data' in item:
             user = item['data'][identity_field]
@@ -75,9 +73,11 @@ class KitsuneEnrich(Enrich):
             # for answers
             user = item[identity_field]
 
-        identity['username'] = user['username']
-        identity['email'] = None
-        identity['name'] = user['username']
+        identity = {
+            'username': user['username'],
+            'email': None,
+            'name': user['username'],
+        }
         if user['display_name']:
             identity['name'] = user['display_name']
 
@@ -91,12 +91,10 @@ class KitsuneEnrich(Enrich):
         for identity in ['creator']:
             # Todo: questions has also involved and solved_by
             if identity in item and item[identity]:
-                user = self.get_sh_identity(item[identity])
-                yield user
+                yield self.get_sh_identity(item[identity])
             if 'answers_data' in item:
                 for answer in item['answers_data']:
-                    user = self.get_sh_identity(answer[identity])
-                    yield user
+                    yield self.get_sh_identity(answer[identity])
 
     @metadata
     def get_rich_item(self, item, kind='question'):
@@ -108,10 +106,7 @@ class KitsuneEnrich(Enrich):
         if kind == 'question':
             eitem['type'] = kind
             for f in self.RAW_FIELDS_COPY + ["offset"]:
-                if f in item:
-                    eitem[f] = item[f]
-                else:
-                    eitem[f] = None
+                eitem[f] = item[f] if f in item else None
             # The real data
             question = item['data']
 
@@ -119,10 +114,7 @@ class KitsuneEnrich(Enrich):
             copy_fields = ["content", "num_answers", "solution"]
             copy_fields += common_fields
             for f in copy_fields:
-                if f in question:
-                    eitem[f] = question[f]
-                else:
-                    eitem[f] = None
+                eitem[f] = question[f] if f in question else None
             eitem["content_analyzed"] = question['content']
 
             # Fields which names are translated
@@ -132,10 +124,8 @@ class KitsuneEnrich(Enrich):
             for fn in map_fields:
                 eitem[map_fields[fn]] = question[fn]
 
-            tags = ''
-            for tag in question['tags']:
-                tags += tag['slug'] + ","
-            tags = tags[0:-1]  # remove last ,
+            tags = ''.join(tag['slug'] + "," for tag in question['tags'])
+            tags = tags[:-1]
             eitem["tags"] = tags
             eitem["tags_analyzed"] = tags
 
@@ -144,7 +134,7 @@ class KitsuneEnrich(Enrich):
             eitem["last_activity_date"] = str_to_datetime(question["updated"]).isoformat()
 
             eitem['lifetime_days'] = \
-                get_time_diff_days(question['created'], question['updated'])
+                    get_time_diff_days(question['created'], question['updated'])
 
             eitem.update(self.get_grimoire_fields(question['created'], "question"))
 
@@ -169,10 +159,7 @@ class KitsuneEnrich(Enrich):
             copy_fields = ["content", "solution"]
             copy_fields += common_fields
             for f in copy_fields:
-                if f in answer:
-                    eitem[f] = answer[f]
-                else:
-                    eitem[f] = None
+                eitem[f] = answer[f] if f in answer else None
             eitem["content_analyzed"] = answer['content']
 
             # Fields which names are translated
@@ -192,7 +179,7 @@ class KitsuneEnrich(Enrich):
             eitem["last_activity_date"] = str_to_datetime(answer["updated"]).isoformat()
 
             eitem['lifetime_days'] = \
-                get_time_diff_days(answer['created'], answer['updated'])
+                    get_time_diff_days(answer['created'], answer['updated'])
 
             eitem.update(self.get_grimoire_fields(answer['created'], "answer"))
 
@@ -219,7 +206,9 @@ class KitsuneEnrich(Enrich):
 
         url = self.elastic.get_bulk_url()
 
-        logger.debug("[kitsune] Adding items to {} (in {} packs)".format(anonymize_url(url), max_items))
+        logger.debug(
+            f"[kitsune] Adding items to {anonymize_url(url)} (in {max_items} packs)"
+        )
 
         items = ocean_backend.fetch()
         for item in items:
@@ -231,7 +220,7 @@ class KitsuneEnrich(Enrich):
             rich_item = self.get_rich_item(item)
             data_json = json.dumps(rich_item)
             bulk_json += '{"index" : {"_id" : "%s" } }\n' % \
-                (item[self.get_field_unique_id()])
+                    (item[self.get_field_unique_id()])
             bulk_json += data_json + "\n"  # Bulk document
             current += 1
             # Time to enrich also de answers
@@ -245,7 +234,7 @@ class KitsuneEnrich(Enrich):
                     rich_answer = self.get_rich_item(answer, kind='answer')
                     data_json = json.dumps(rich_answer)
                     bulk_json += '{"index" : {"_id" : "%s_%i" } }\n' % \
-                        (item[self.get_field_unique_id()],
+                            (item[self.get_field_unique_id()],
                          rich_answer['answer_id'])
                     bulk_json += data_json + "\n"  # Bulk document
                     current += 1

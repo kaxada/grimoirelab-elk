@@ -78,17 +78,13 @@ class DiscourseEnrich(Enrich):
         posts = item['data']['post_stream']['posts']
 
         for post in posts:
-            user = self.get_sh_identity(post)
-            yield user
+            yield self.get_sh_identity(post)
 
     def get_sh_identity(self, post, identity_field=None):
-        identity = {}
-
         if identity_field in post:
             post = post[identity_field]
 
-        identity['username'] = post.get('username', None)
-        identity['email'] = None
+        identity = {'username': post.get('username', None), 'email': None}
         identity['name'] = post.get('display_username', None)
         return identity
 
@@ -100,15 +96,11 @@ class DiscourseEnrich(Enrich):
 
     def get_users_data(self, post):
         """ Adapt the data to be used with standard SH enrich API """
-        poster = {}
-        poster[self.get_field_author()] = post
-        return poster
+        return {self.get_field_author(): post}
 
     def get_rich_item_answers(self, item):
         answers_enrich = []
-        nanswers = 0
-
-        for answer in item['data']['post_stream']['posts']:
+        for nanswers, answer in enumerate(item['data']['post_stream']['posts'], start=1):
             eanswer = self.get_rich_item(item)  # reuse all fields from item
             eanswer['id'] = str(eanswer['id']) + '_' + str(answer['id'])
             eanswer['url'] = eanswer['origin'] + "/t/" + answer['topic_slug']
@@ -136,7 +128,6 @@ class DiscourseEnrich(Enrich):
             if self.prjs_map:
                 eanswer.update(self.get_item_project(eanswer))
 
-            nanswers += 1
             eanswer['first_answer'] = 0
             if nanswers == 1:
                 eanswer['first_answer'] = 1
@@ -161,52 +152,46 @@ class DiscourseEnrich(Enrich):
         return headers
 
     def __collect_categories(self, origin, headers):
-        categories = {}
         con = grimoire_con()
 
-        raw_site = con.get(origin + "/site.json", headers=headers)
-        for cat in raw_site.json()['categories']:
-            categories[cat['id']] = cat['name']
-        return categories
+        raw_site = con.get(f"{origin}/site.json", headers=headers)
+        return {cat['id']: cat['name'] for cat in raw_site.json()['categories']}
 
     def __collect_categories_tree(self, origin, headers):
         tree = {}
         con = grimoire_con()
-        raw = con.get(origin + "/categories.json", headers=headers)
+        raw = con.get(f"{origin}/categories.json", headers=headers)
         raw_json = raw.json()
         if "category_list" in raw_json and 'categories' in raw_json["category_list"]:
             categories = raw_json["category_list"]['categories']
         else:
             return tree
         for cat in categories:
-            if 'subcategory_ids' in cat:
-                tree[cat['id']] = cat['subcategory_ids']
-            else:
-                tree[cat['id']] = {}
+            tree[cat['id']] = cat['subcategory_ids'] if 'subcategory_ids' in cat else {}
         return tree
 
     def __related_categories(self, category_id):
         """ Get all related categories to a given one """
-        related = []
-        for cat in self.categories_tree:
-            if category_id in self.categories_tree[cat]:
-                related.append(self.categories[cat])
-        return related
+        return [
+            self.categories[cat]
+            for cat in self.categories_tree
+            if category_id in self.categories_tree[cat]
+        ]
 
     @metadata
     def get_rich_item(self, item):
 
         # Get the categories name if not already done
         if not self.categories:
-            logger.info("[discourse] Getting the categories data from {}".format(
-                        item['origin']))
+            logger.info(f"[discourse] Getting the categories data from {item['origin']}")
             self.categories = self.__collect_categories(item['origin'], self._set_extra_headers())
         # Get the categories tree if not already done
         if not self.categories_tree:
-            logger.info("[discourse] Getting the categories tree data from {}".format(
-                        item['origin']))
+            logger.info(
+                f"[discourse] Getting the categories tree data from {item['origin']}"
+            )
             self.categories_tree = self.__collect_categories_tree(item['origin'], self._set_extra_headers())
-            # self.__show_categories_tree()
+                # self.__show_categories_tree()
 
         eitem = {}
 
@@ -217,10 +202,7 @@ class DiscourseEnrich(Enrich):
         # Fields that are the same in item and eitem
         copy_fields = ["id"]
         for f in copy_fields:
-            if f in topic:
-                eitem[f] = str(topic[f])
-            else:
-                eitem[f] = None
+            eitem[f] = str(topic[f]) if f in topic else None
         # Fields which names are translated
         map_fields = {"like_count": "question_like_count",
                       "posts_count": "question_posts_count",
@@ -234,11 +216,7 @@ class DiscourseEnrich(Enrich):
                       "reply_count": "question_replies"
                       }
         for fn in map_fields:
-            if fn in topic:
-                eitem[map_fields[fn]] = topic[fn]
-            else:
-                eitem[map_fields[fn]] = None
-
+            eitem[map_fields[fn]] = topic[fn] if fn in topic else None
         # The first post is the first published, and it is the question
         first_post = topic['post_stream']['posts'][0]
 
@@ -316,9 +294,8 @@ class DiscourseEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[discourse] {}/{} missing items for Discourse".format(
-                         missing, num_items))
+            logger.error(f"[discourse] {missing}/{num_items} missing items for Discourse")
         else:
-            logger.info("[discourse] {} items inserted for Discourse".format(num_items))
+            logger.info(f"[discourse] {num_items} items inserted for Discourse")
 
         return num_items

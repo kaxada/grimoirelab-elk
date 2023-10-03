@@ -47,7 +47,7 @@ class ESPandasConnector(ESConnector):
 
         super().__init__(es_conn=es_conn, es_index=es_index, sort_on_field=sort_on_field, repo=repo,
                          read_only=read_only)
-        self.__log_prefix = "[" + es_index + "] study areas_of_code "
+        self.__log_prefix = f"[{es_index}] study areas_of_code "
 
     @staticmethod
     def make_hashcode(uuid, filepath, file_event):
@@ -133,7 +133,7 @@ class ESPandasConnector(ESConnector):
             }
 
             if (self._es_major == '7' and self._es_distribution == 'elasticsearch') or\
-               (self._es_major == '1' and self._es_distribution == 'opensearch'):
+                   (self._es_major == '1' and self._es_distribution == 'opensearch'):
                 doc.pop('_type')
 
             docs.append(doc)
@@ -142,7 +142,7 @@ class ESPandasConnector(ESConnector):
         chunks = [docs[i:i + chunk_size] for i in range(0, len(docs), chunk_size)]
         for chunk in chunks:
             helpers.bulk(self._es_conn, chunk)
-        logger.debug("{} Written: {}".format(self.__log_prefix, len(docs)))
+        logger.debug(f"{self.__log_prefix} Written: {len(docs)}")
 
 
 class AreasOfCode(CeresBase):
@@ -176,35 +176,35 @@ class AreasOfCode(CeresBase):
         :param items_block: items to be processed. Expects to find ElasticSearch hits _source part only.
         """
 
-        logger.debug("{} New commits: {}".format(self.__log_prefix, len(items_block)))
+        logger.debug(f"{self.__log_prefix} New commits: {len(items_block)}")
 
         # Create events from commits
         git_events = Git(items_block, self._git_enrich)
         events_df = git_events.eventize(2)
 
-        logger.debug("{} New events: {}".format(self.__log_prefix, len(events_df)))
+        logger.debug(f"{self.__log_prefix} New events: {len(events_df)}")
 
         if len(events_df) > 0:
             # Filter information
             data_filtered = FilterRows(events_df)
             events_df = data_filtered.filter_(["filepath"], "-")
 
-            logger.debug("{} New events filtered: {}".format(self.__log_prefix, len(events_df)))
+            logger.debug(f"{self.__log_prefix} New events filtered: {len(events_df)}")
 
             events_df['message'] = events_df['message'].str.slice(stop=AreasOfCode.MESSAGE_MAX_SIZE)
-            logger.debug("{} Remove message content".format(self.__log_prefix))
+            logger.debug(f"{self.__log_prefix} Remove message content")
 
             # Add filetype info
             enriched_filetype = FileType(events_df)
             events_df = enriched_filetype.enrich('filepath')
 
-            logger.debug("{} New Filetype events: {}".format(self.__log_prefix, len(events_df)))
+            logger.debug(f"{self.__log_prefix} New Filetype events: {len(events_df)}")
 
             # Split filepath info
             enriched_filepath = FilePath(events_df)
             events_df = enriched_filepath.enrich('filepath')
 
-            logger.debug("{} New Filepath events: {}".format(self.__log_prefix, len(events_df)))
+            logger.debug(f"{self.__log_prefix} New Filepath events: {len(events_df)}")
 
             events_df['origin'] = events_df['repository']
 
@@ -212,7 +212,7 @@ class AreasOfCode(CeresBase):
             convert = ToUTF8(events_df)
             events_df = convert.enrich(["owner"])
 
-        logger.debug("{} Final new events: {}".format(self.__log_prefix, len(events_df)))
+        logger.debug(f"{self.__log_prefix} Final new events: {len(events_df)}")
 
         return self.ProcessResults(processed=len(events_df), out_items=events_df)
 
@@ -228,5 +228,4 @@ def areas_of_code(git_enrich, in_conn, out_conn, block_size=100):
     """
     aoc = AreasOfCode(in_connector=in_conn, out_connector=out_conn, block_size=block_size,
                       git_enrich=git_enrich)
-    ndocs = aoc.analyze()
-    return ndocs
+    return aoc.analyze()

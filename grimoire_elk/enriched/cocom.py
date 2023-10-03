@@ -153,14 +153,11 @@ class CocomEnrich(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_cocom_analysis)
+        self.studies = [self.enrich_cocom_analysis]
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        identities = []
-
-        return identities
+        return []
 
     def has_identities(self):
         """ Return whether the enriched items contains identities """
@@ -176,25 +173,17 @@ class CocomEnrich(Enrich):
 
         modules = []
         for idx in range(len(path_chunks)):
-            sub_path = '/'.join(path_chunks[:idx])
-
-            if sub_path:
+            if sub_path := '/'.join(path_chunks[:idx]):
                 modules.append(sub_path)
 
         return modules
 
     def get_language(self, ext):
-        language = None
-        if ext:
-            language = LANGUAGES.get(ext.lower(), ext.upper())
-
-        return language
+        return LANGUAGES.get(ext.lower(), ext.upper()) if ext else None
 
     @metadata
     def get_rich_item(self, file_analysis):
-        eitem = {}
-        for metric in self.metrics:
-            eitem[metric] = file_analysis.get(metric, None)
+        eitem = {metric: file_analysis.get(metric, None) for metric in self.metrics}
         eitem["file_path"] = file_analysis.get("file_path", None)
         eitem['modules'] = self.extract_modules(eitem['file_path'])
         eitem = self.__add_derived_metrics(file_analysis, eitem)
@@ -234,7 +223,7 @@ class CocomEnrich(Enrich):
                 eitem.update(self.get_item_project(eitem))
 
             # uuid
-            eitem['id'] = "{}_{}".format(eitem['commit_sha'], eitem['file_path'])
+            eitem['id'] = f"{eitem['commit_sha']}_{eitem['file_path']}"
 
             eitem.update(self.get_grimoire_fields(entry["AuthorDate"], "file"))
 
@@ -282,11 +271,9 @@ class CocomEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[cocom] {}/{} missing items".format(
-                         missing, num_items))
+            logger.error(f"[cocom] {missing}/{num_items} missing items")
         else:
-            logger.info("[cocom] {} items inserted".format(
-                        num_items))
+            logger.info(f"[cocom] {num_items} items inserted")
 
         return num_items
 
@@ -308,8 +295,9 @@ class CocomEnrich(Enrich):
         repositories = [repo['key'] for repo in unique_repos['aggregations']['unique_repos'].get('buckets', [])]
         current_month = datetime_utcnow().replace(day=1, hour=0, minute=0, second=0)
 
-        logger.info("[cocom] study enrich-cocom-analysis {} repositories to process".format(
-                    len(repositories)))
+        logger.info(
+            f"[cocom] study enrich-cocom-analysis {len(repositories)} repositories to process"
+        )
         es_out = ElasticSearch(enrich_backend.elastic.url, out_index, mappings=Mapping)
         es_out.add_alias("cocom_study")
 
@@ -321,8 +309,9 @@ class CocomEnrich(Enrich):
             if repository_url_anonymized.startswith('http'):
                 repository_url_anonymized = anonymize_url(repository_url_anonymized)
 
-            logger.info("[cocom] study enrich-cocom-analysis start analysis for {}".format(
-                        repository_url_anonymized))
+            logger.info(
+                f"[cocom] study enrich-cocom-analysis start analysis for {repository_url_anonymized}"
+            )
             evolution_items = []
 
             for interval in interval_months:
@@ -356,23 +345,22 @@ class CocomEnrich(Enrich):
 
                             total_per_lang[lang]["total_files"] = total_per_lang[lang].get("total_files", 0) + 1
 
-                    for language in total_per_lang:
-                        total = total_per_lang[language]
+                    for language, total in total_per_lang.items():
                         if total["loc"] > 0:
                             hash_repo_url = hashlib.md5(repository_url_anonymized.encode('utf-8')).hexdigest()
                             to_month_iso = to_month.isoformat()
                             evolution_item = {
-                                "id": "{}_{}_{}_{}".format(to_month_iso, hash_repo_url, interval, language),
+                                "id": f"{to_month_iso}_{hash_repo_url}_{interval}_{language}",
                                 "repo_url": repository_url_anonymized,
                                 "origin": repository_url,
                                 "interval_months": interval,
                                 "study_creation_date": to_month_iso,
                                 "language": language,
-                                "total_files": total["total_files"]
+                                "total_files": total["total_files"],
                             }
 
                             for metric in self.metrics:
-                                evolution_item["total_" + metric] = total[metric]
+                                evolution_item[f"total_{metric}"] = total[metric]
 
                             evolution_item["total_comments_per_loc"] = round(
                                 evolution_item["total_comments"] / max(evolution_item["total_loc"], 1), 2)
@@ -398,18 +386,15 @@ class CocomEnrich(Enrich):
                 if num_items != ins_items:
                     missing = num_items - ins_items
                     logger.error(
-                        "[cocom] study enrich-cocom-analysis {}/{} missing items for Graal CoCom Analysis "
-                        "Study".format(missing, num_items)
+                        f"[cocom] study enrich-cocom-analysis {missing}/{num_items} missing items for Graal CoCom Analysis Study"
                     )
                 else:
                     logger.info(
-                        "[cocom] study enrich-cocom-analysis {} items inserted for Graal CoCom Analysis "
-                        "Study".format(num_items)
+                        f"[cocom] study enrich-cocom-analysis {num_items} items inserted for Graal CoCom Analysis Study"
                     )
 
             logger.info(
-                "[cocom] study enrich-cocom-analysis End analysis for {} with month interval".format(
-                    repository_url_anonymized)
+                f"[cocom] study enrich-cocom-analysis End analysis for {repository_url_anonymized} with month interval"
             )
 
         logger.info("[cocom] study enrich-cocom-analysis End")

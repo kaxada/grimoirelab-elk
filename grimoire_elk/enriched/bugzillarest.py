@@ -79,13 +79,15 @@ class BugzillaRESTEnrich(Enrich):
                 yield self.get_sh_identity(item["data"][rol])
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-
         user = item  # by default a specific user dict is used
         if isinstance(item, dict) and 'data' in item:
             user = item['data'][identity_field]
 
-        identity['username'] = user['name'].split("@")[0] if user.get('name', None) else None
+        identity = {
+            'username': user['name'].split("@")[0]
+            if user.get('name', None)
+            else None
+        }
         identity['email'] = user.get('email', None)
         identity['name'] = user.get('real_name', None)
         return identity
@@ -94,7 +96,7 @@ class BugzillaRESTEnrich(Enrich):
     def get_rich_item(self, item):
 
         if 'id' not in item['data']:
-            logger.warning("[bugzillarest] Dropped bug without bug_id {}".format(item))
+            logger.warning(f"[bugzillarest] Dropped bug without bug_id {item}")
             return None
 
         eitem = {}
@@ -146,7 +148,7 @@ class BugzillaRESTEnrich(Enrich):
             eitem['comments'] = len(issue['comments'])
         eitem['url'] = item['origin'] + "/show_bug.cgi?id=" + str(issue['id'])
         eitem['time_to_last_update_days'] = \
-            get_time_diff_days(eitem['creation_ts'], eitem['delta_ts'])
+                get_time_diff_days(eitem['creation_ts'], eitem['delta_ts'])
 
         eitem['timeopen_days'] = get_time_diff_days(eitem['creation_ts'], datetime_utcnow().replace(tzinfo=None))
         if 'is_open' in issue and not issue['is_open']:

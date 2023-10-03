@@ -81,20 +81,15 @@ class MeetupEnrich(Enrich):
 
         # Creators
         if 'event_hosts' in item:
-            user = self.get_sh_identity(item['event_hosts'][0])
-            yield user
-
+            yield self.get_sh_identity(item['event_hosts'][0])
         # rsvps
         rsvps = item.get('rsvps', [])
 
         for rsvp in rsvps:
-            user = self.get_sh_identity(rsvp['member'])
-            yield user
-
+            yield self.get_sh_identity(rsvp['member'])
         # Comments
         for comment in item['comments']:
-            user = self.get_sh_identity(comment['member'])
-            yield user
+            yield self.get_sh_identity(comment['member'])
 
     def get_sh_identity(self, item, identity_field=None):
         identity = {'username': None, 'email': None, 'name': None}
@@ -121,7 +116,7 @@ class MeetupEnrich(Enrich):
         eitem = {}
 
         if 'time' not in item['data']:
-            logger.warning("[meetup] Not processing {}: no time field".format(item['uuid']))
+            logger.warning(f"[meetup] Not processing {item['uuid']}: no time field")
             return eitem
 
         self.copy_raw_fields(self.RAW_FIELDS_COPY, item, eitem)
@@ -131,11 +126,7 @@ class MeetupEnrich(Enrich):
         # data fields to copy
         copy_fields = ["id", "how_to_find_us"]
         for f in copy_fields:
-            if f in event:
-                eitem[f] = event[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = event[f] if f in event else None
         # Fields which names are translated
         map_fields = {
             "link": "url",
@@ -170,13 +161,13 @@ class MeetupEnrich(Enrich):
 
         for f in copy_fields:
             if f in event:
-                eitem["meetup_" + f] = event[f]
+                eitem[f"meetup_{f}"] = event[f]
             else:
                 eitem[f] = None
 
         for f in copy_fields_time:
             if f in event:
-                eitem["meetup_" + f] = unixtime_to_datetime(event[f] / 1000).isoformat()
+                eitem[f"meetup_{f}"] = unixtime_to_datetime(event[f] / 1000).isoformat()
             else:
                 eitem[f] = None
 
@@ -192,7 +183,7 @@ class MeetupEnrich(Enrich):
                 logger.warning("[meetup] Time field nof found in event")
                 return {}
         except ValueError:
-            logger.warning("[meetup] Wrong datetime for {}: {}".format(eitem['url'], event['time']))
+            logger.warning(f"[meetup] Wrong datetime for {eitem['url']}: {event['time']}")
             # If no datetime for the enriched item, it is useless for Kibana
             return {}
 
@@ -202,7 +193,7 @@ class MeetupEnrich(Enrich):
                            "localized_country_name", "repinned", "address_1"]
             for f in copy_fields:
                 if f in venue:
-                    eitem["venue_" + f] = venue[f]
+                    eitem[f"venue_{f}"] = venue[f]
                 else:
                     eitem[f] = None
 
@@ -224,7 +215,7 @@ class MeetupEnrich(Enrich):
                            "who"]
             for f in copy_fields:
                 if f in group:
-                    eitem["group_" + f] = group[f]
+                    eitem[f"group_{f}"] = group[f]
                 else:
                     eitem[f] = None
 
@@ -265,8 +256,6 @@ class MeetupEnrich(Enrich):
     def get_item_sh(self, item):
         """ Add sorting hat enrichment fields  """
 
-        sh_fields = {}
-
         # Not shared common get_item_sh because it is pretty specific
         if 'member' in item:
             # comment and rsvp
@@ -275,15 +264,13 @@ class MeetupEnrich(Enrich):
             # meetup event
             identity = self.get_sh_identity(item['event_hosts'][0])
         else:
-            return sh_fields
-
+            return {}
         created = unixtime_to_datetime(item['created'] / 1000)
-        if self.sortinghat:
-            sh_fields = self.get_item_sh_fields(identity, created)
-        else:
-            sh_fields = self.get_item_no_sh_fields(identity, 'author')
-
-        return sh_fields
+        return (
+            self.get_item_sh_fields(identity, created)
+            if self.sortinghat
+            else self.get_item_no_sh_fields(identity, 'author')
+        )
 
     def get_rich_item_comments(self, comments, eitem):
         for comment in comments:
@@ -380,8 +367,8 @@ class MeetupEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[meetup] {}/{} missing items".format(missing, num_items))
+            logger.error(f"[meetup] {missing}/{num_items} missing items")
         else:
-            logger.info("[meetup] {} items inserted".format(num_items))
+            logger.info(f"[meetup] {num_items} items inserted")
 
         return num_items

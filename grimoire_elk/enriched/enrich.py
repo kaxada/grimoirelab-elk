@@ -140,15 +140,10 @@ class Enrich(ElasticItems):
         if not self.json_projects:
             if db_projects_map and not MYSQL_LIBS:
                 raise RuntimeError("Projects configured but MySQL libraries not available.")
-            if db_projects_map and not self.json_projects:
-                self.prjs_map = self.__get_projects_map(db_projects_map,
-                                                        db_user, db_password,
-                                                        db_host)
-
-        if self.prjs_map and self.json_projects:
-            # logger.info("Comparing db and json projects")
-            # self.__compare_projects_map(self.prjs_map, self.json_projects)
-            pass
+        if db_projects_map and not self.json_projects:
+            self.prjs_map = self.__get_projects_map(db_projects_map,
+                                                    db_user, db_password,
+                                                    db_host)
 
         self.studies = []
 
@@ -181,7 +176,7 @@ class Enrich(ElasticItems):
         backend_name = self.get_connector_name()
         # We can now create the perceval backend
         if not get_connector_from_name(backend_name):
-            raise RuntimeError("Unknown backend {}".format(backend_name))
+            raise RuntimeError(f"Unknown backend {backend_name}")
         connector = get_connector_from_name(backend_name)
         klass = connector[3]  # BackendCmd for the connector
         if not klass:
@@ -226,34 +221,29 @@ class Enrich(ElasticItems):
                 if ds == "meta":
                     continue  # not a real data source
                 if ds not in ds_repo_to_prj:
-                    if ds not in ds_repo_to_prj:
-                        ds_repo_to_prj[ds] = {}
+                    ds_repo_to_prj[ds] = {}
                 for repo in json[project][ds]:
                     repo, _ = self.extract_repo_tags(repo)
                     if repo in ds_repo_to_prj[ds]:
                         if project == ds_repo_to_prj[ds][repo]:
-                            logger.debug("Duplicated repo: {} {} {}".format(ds, repo, project))
-                        else:
-                            if len(project.split(".")) > len(ds_repo_to_prj[ds][repo].split(".")):
-                                logger.debug("Changed repo project because we found a leaf: {} leaf vs "
-                                             "{} ({}, {})".format(project, ds_repo_to_prj[ds][repo], repo, ds))
-                                ds_repo_to_prj[ds][repo] = project
+                            logger.debug(f"Duplicated repo: {ds} {repo} {project}")
+                        elif len(project.split(".")) > len(ds_repo_to_prj[ds][repo].split(".")):
+                            logger.debug(
+                                f"Changed repo project because we found a leaf: {project} leaf vs {ds_repo_to_prj[ds][repo]} ({repo}, {ds})"
+                            )
+                            ds_repo_to_prj[ds][repo] = project
                     else:
                         ds_repo_to_prj[ds][repo] = project
         return ds_repo_to_prj
 
     def __compare_projects_map(self, db, json):
-        # Compare the projects coming from db and from a json file in eclipse
-        ds_map_db = {}
         ds_map_json = {
             "git": "scm",
             "pipermail": "mls",
             "gerrit": "scr",
             "bugzilla": "its"
         }
-        for ds in ds_map_json:
-            ds_map_db[ds_map_json[ds]] = ds
-
+        ds_map_db = {ds_map_json[ds]: ds for ds in ds_map_json}
         db_projects = []
         dss = db.keys()
 
@@ -265,21 +255,21 @@ class Enrich(ElasticItems):
                 if project not in db_projects:
                     db_projects.append(project)
                 if project not in json:
-                    logger.error("Project not found in JSON {}".format(project))
-                    raise NotFoundError("Project not found in JSON {}".format(project))
+                    logger.error(f"Project not found in JSON {project}")
+                    raise NotFoundError(f"Project not found in JSON {project}")
                 else:
                     if ds == 'mls':
                         repo_mls = repository.split("/")[-1]
                         repo_mls = repo_mls.replace(".mbox", "")
-                        repository = 'https://dev.eclipse.org/mailman/listinfo/' + repo_mls
+                        repository = f'https://dev.eclipse.org/mailman/listinfo/{repo_mls}'
                     if ds_map_db[ds] not in json[project]:
-                        logger.error("db repository not found in json {}".format(repository))
+                        logger.error(f"db repository not found in json {repository}")
                     elif repository not in json[project][ds_map_db[ds]]:
-                        logger.error("db repository not found in json {}".format(repository))
+                        logger.error(f"db repository not found in json {repository}")
 
         for project in json.keys():
             if project not in db_projects:
-                logger.debug("JSON project {} not found in db".format(project))
+                logger.debug(f"JSON project {project} not found in db")
 
         # Check that all JSON data is in the database
         for project in json:
@@ -290,15 +280,12 @@ class Enrich(ElasticItems):
                 for repo in json[project][ds]:
                     if ds == 'pipermail':
                         repo_mls = repo.split("/")[-1]
-                        repo = "/mnt/mailman_archives/%s.mbox/%s.mbox" % (repo_mls, repo_mls)
-                    if repo in db[ds_map_json[ds]]:
-                        # print("Found ", repo, ds)
-                        pass
-                    else:
-                        logger.debug("Not found repository in db {} {}".format(repo, ds))
+                        repo = f"/mnt/mailman_archives/{repo_mls}.mbox/{repo_mls}.mbox"
+                    if repo not in db[ds_map_json[ds]]:
+                        logger.debug(f"Not found repository in db {repo} {ds}")
 
-        logger.debug("Number of db projects: {}".format(db_projects))
-        logger.debug("Number of json projects: {} (>={})".format(json.keys(), db_projects))
+        logger.debug(f"Number of db projects: {db_projects}")
+        logger.debug(f"Number of json projects: {json.keys()} (>={db_projects})")
 
     def __get_projects_map(self, db_projects_map, db_user=None, db_password=None, db_host=None):
         # Read the repo to project mapping from a database
@@ -315,15 +302,14 @@ class Enrich(ElasticItems):
         """
 
         res = int(cursor.execute(query))
-        if res > 0:
-            rows = cursor.fetchall()
-            for row in rows:
-                [ds, name, repo] = row
-                if ds not in ds_repo_to_prj:
-                    ds_repo_to_prj[ds] = {}
-                ds_repo_to_prj[ds][repo] = name
-        else:
-            raise RuntimeError("Can't find projects mapping in {}".format(db_projects_map))
+        if res <= 0:
+            raise RuntimeError(f"Can't find projects mapping in {db_projects_map}")
+        rows = cursor.fetchall()
+        for row in rows:
+            [ds, name, repo] = row
+            if ds not in ds_repo_to_prj:
+                ds_repo_to_prj[ds] = {}
+            ds_repo_to_prj[ds][repo] = name
         return ds_repo_to_prj
 
     def get_field_unique_id(self):
@@ -366,7 +352,7 @@ class Enrich(ElasticItems):
 
         url = self.elastic.get_bulk_url()
 
-        logger.debug("Adding items to {} (in {} packs)".format(anonymize_url(url), max_items))
+        logger.debug(f"Adding items to {anonymize_url(url)} (in {max_items} packs)")
 
         if events:
             logger.debug("Adding events items")
@@ -390,7 +376,7 @@ class Enrich(ElasticItems):
                 rich_item = self.get_rich_item(item)
                 data_json = json.dumps(rich_item)
                 bulk_json += '{"index" : {"_id" : "%s" } }\n' % \
-                    (item[self.get_field_unique_id()])
+                        (item[self.get_field_unique_id()])
                 bulk_json += data_json + "\n"  # Bulk document
                 current += 1
             else:
@@ -398,7 +384,7 @@ class Enrich(ElasticItems):
                 for rich_event in rich_events:
                     data_json = json.dumps(rich_event)
                     bulk_json += '{"index" : {"_id" : "%s_%s" } }\n' % \
-                        (item[self.get_field_unique_id()],
+                            (item[self.get_field_unique_id()],
                          rich_event[self.get_field_event_unique_id()])
                     bulk_json += data_json + "\n"  # Bulk document
                     current += 1
@@ -450,10 +436,7 @@ class Enrich(ElasticItems):
         return domain
 
     def get_identity_domain(self, identity):
-        domain = None
-        if identity['email']:
-            domain = self.get_email_domain(identity['email'])
-        return domain
+        return self.get_email_domain(identity['email']) if identity['email'] else None
 
     def get_item_id(self, eitem):
         """ Return the item_id linked to this enriched eitem """
@@ -463,15 +446,10 @@ class Enrich(ElasticItems):
 
     def get_last_update_from_es(self, _filters=[]):
 
-        last_update = self.elastic.get_last_date(self.get_incremental_date(), _filters)
-
-        return last_update
+        return self.elastic.get_last_date(self.get_incremental_date(), _filters)
 
     def get_last_offset_from_es(self, _filters=[]):
-        # offset is always the field name from perceval
-        last_update = self.elastic.get_last_offset("offset", _filters)
-
-        return last_update
+        return self.elastic.get_last_offset("offset", _filters)
 
 #    def get_elastic_mappings(self):
 #        """ Mappings for enriched indexes """
@@ -482,9 +460,7 @@ class Enrich(ElasticItems):
     def get_elastic_analyzers(self):
         """ Custom analyzers for our indexes  """
 
-        analyzers = '{}'
-
-        return analyzers
+        return '{}'
 
     def get_grimoire_fields(self, creation_date, item_name):
         """ Return common grimoire fields for all data sources """
@@ -495,7 +471,7 @@ class Enrich(ElasticItems):
         except Exception as ex:
             pass
 
-        name = "is_" + self.get_connector_name() + "_" + item_name
+        name = f"is_{self.get_connector_name()}_{item_name}"
 
         return {
             "grimoire_creation_date": grimoire_date,
@@ -524,7 +500,7 @@ class Enrich(ElasticItems):
                 if i > 0:
                     eitem_path += "."
                 eitem_path += subprojects[i]
-                eitem_project_levels['project_' + str(i + 1)] = eitem_path
+                eitem_project_levels[f'project_{str(i + 1)}'] = eitem_path
 
         return eitem_project_levels
 
@@ -635,17 +611,17 @@ class Enrich(ElasticItems):
         if project and 'meta' in self.json_projects[project]:
             meta_fields = self.json_projects[project]['meta']
             if isinstance(meta_fields, dict):
-                eitem_metadata = {CUSTOM_META_PREFIX + "_" + field: value for field, value in meta_fields.items()}
+                eitem_metadata = {
+                    f"{CUSTOM_META_PREFIX}_{field}": value
+                    for field, value in meta_fields.items()
+                }
 
         return eitem_metadata
 
     # Sorting Hat stuff to be moved to SortingHat class
     def get_sh_identity(self, item, identity_field):
         """ Empty identity. Real implementation in each data source. """
-        identity = {}
-        for field in ['name', 'email', 'username']:
-            identity[field] = None
-        return identity
+        return {field: None for field in ['name', 'email', 'username']}
 
     def get_domain(self, identity):
         """ Get the domain from a SH identity """
@@ -659,11 +635,8 @@ class Enrich(ElasticItems):
         return domain
 
     def is_bot(self, uuid):
-        bot = False
         u = self.get_unique_identity(uuid)
-        if u.profile:
-            bot = u.profile.is_bot
-        return bot
+        return u.profile.is_bot if u.profile else False
 
     def get_enrollment(self, uuid, item_date):
         """ Get the enrollment for the uuid when the item was done """
@@ -692,9 +665,7 @@ class Enrich(ElasticItems):
         if item_date and item_date.tzinfo:
             item_date = (item_date - item_date.utcoffset()).replace(tzinfo=None)
 
-        enrollments = self.get_enrollments(uuid)
-
-        if enrollments:
+        if enrollments := self.get_enrollments(uuid):
             for enrollment in enrollments:
                 if not item_date:
                     enrolls.append(enrollment.organization.name)
@@ -731,25 +702,23 @@ class Enrich(ElasticItems):
         """
         enrolls = [enroll.split("::")[1] if "::" in enroll else
                    enroll for enroll in enrollments]
-        enrolls_unique = sorted(list(set(enrolls)))
-
-        return enrolls_unique
+        return sorted(list(set(enrolls)))
 
     def __get_item_sh_fields_empty(self, rol, undefined=False):
         """ Return a SH identity with all fields to empty_field """
         # If empty_field is None, the fields do not appear in index patterns
         empty_field = '' if not undefined else '-- UNDEFINED --'
         return {
-            rol + "_id": empty_field,
-            rol + "_uuid": empty_field,
-            rol + "_name": empty_field,
-            rol + "_user_name": empty_field,
-            rol + "_domain": empty_field,
-            rol + "_gender": empty_field,
-            rol + "_gender_acc": None,
-            rol + "_org_name": empty_field,
-            rol + "_bot": False,
-            rol + MULTI_ORG_NAMES: [empty_field]
+            f"{rol}_id": empty_field,
+            f"{rol}_uuid": empty_field,
+            f"{rol}_name": empty_field,
+            f"{rol}_user_name": empty_field,
+            f"{rol}_domain": empty_field,
+            f"{rol}_gender": empty_field,
+            f"{rol}_gender_acc": None,
+            f"{rol}_org_name": empty_field,
+            f"{rol}_bot": False,
+            rol + MULTI_ORG_NAMES: [empty_field],
         }
 
     def get_item_no_sh_fields(self, identity, rol):
@@ -766,16 +735,16 @@ class Enrich(ElasticItems):
         uuid = utils.uuid(backend_name, email=email,
                           name=name, username=username)
         return {
-            rol + "_id": uuid,
-            rol + "_uuid": uuid,
-            rol + "_name": name,
-            rol + "_user_name": username,
-            rol + "_domain": self.get_identity_domain(identity),
-            rol + "_gender": self.unknown_gender,
-            rol + "_gender_acc": None,
-            rol + "_org_name": self.unaffiliated_group,
-            rol + "_bot": False,
-            rol + MULTI_ORG_NAMES: [self.unaffiliated_group]
+            f"{rol}_id": uuid,
+            f"{rol}_uuid": uuid,
+            f"{rol}_name": name,
+            f"{rol}_user_name": username,
+            f"{rol}_domain": self.get_identity_domain(identity),
+            f"{rol}_gender": self.unknown_gender,
+            f"{rol}_gender_acc": None,
+            f"{rol}_org_name": self.unaffiliated_group,
+            f"{rol}_bot": False,
+            rol + MULTI_ORG_NAMES: [self.unaffiliated_group],
         }
 
     def get_item_sh_fields(self, identity=None, item_date=None, sh_id=None,
@@ -786,51 +755,48 @@ class Enrich(ElasticItems):
         if identity:
             # Use the identity to get the SortingHat identity
             sh_ids = self.get_sh_ids(identity, self.get_connector_name())
-            eitem_sh[rol + "_id"] = sh_ids.get('id', '')
-            eitem_sh[rol + "_uuid"] = sh_ids.get('uuid', '')
-            eitem_sh[rol + "_name"] = identity.get('name', '')
-            eitem_sh[rol + "_user_name"] = identity.get('username', '')
-            eitem_sh[rol + "_domain"] = self.get_identity_domain(identity)
+            eitem_sh[f"{rol}_id"] = sh_ids.get('id', '')
+            eitem_sh[f"{rol}_uuid"] = sh_ids.get('uuid', '')
+            eitem_sh[f"{rol}_name"] = identity.get('name', '')
+            eitem_sh[f"{rol}_user_name"] = identity.get('username', '')
+            eitem_sh[f"{rol}_domain"] = self.get_identity_domain(identity)
         elif sh_id:
             # Use the SortingHat id to get the identity
-            eitem_sh[rol + "_id"] = sh_id
-            eitem_sh[rol + "_uuid"] = self.get_uuid_from_id(sh_id)
+            eitem_sh[f"{rol}_id"] = sh_id
+            eitem_sh[f"{rol}_uuid"] = self.get_uuid_from_id(sh_id)
         else:
             # No data to get a SH identity. Return an empty one.
             return eitem_sh
 
         # If the identity does not exists return and empty identity
-        if rol + "_uuid" not in eitem_sh or not eitem_sh[rol + "_uuid"]:
+        if f"{rol}_uuid" not in eitem_sh or not eitem_sh[f"{rol}_uuid"]:
             return self.__get_item_sh_fields_empty(rol, undefined=True)
 
-        # Get the SH profile to use first this data
-        profile = self.get_profile_sh(eitem_sh[rol + "_uuid"])
-
-        if profile:
+        if profile := self.get_profile_sh(eitem_sh[f"{rol}_uuid"]):
             # If name not in profile, keep its old value (should be empty or identity's name field value)
-            eitem_sh[rol + "_name"] = profile.get('name', eitem_sh[rol + "_name"])
+            eitem_sh[f"{rol}_name"] = profile.get('name', eitem_sh[f"{rol}_name"])
 
             email = profile.get('email', None)
-            eitem_sh[rol + "_domain"] = self.get_email_domain(email)
+            eitem_sh[f"{rol}_domain"] = self.get_email_domain(email)
 
-            eitem_sh[rol + "_gender"] = profile.get('gender', self.unknown_gender)
-            eitem_sh[rol + "_gender_acc"] = profile.get('gender_acc', 0)
+            eitem_sh[f"{rol}_gender"] = profile.get('gender', self.unknown_gender)
+            eitem_sh[f"{rol}_gender_acc"] = profile.get('gender_acc', 0)
 
-        elif not profile and sh_id:
-            logger.warning("Can't find SH identity profile: {}".format(sh_id))
+        elif sh_id:
+            logger.warning(f"Can't find SH identity profile: {sh_id}")
 
         # Ensure we always write gender fields
-        if not eitem_sh.get(rol + "_gender"):
-            eitem_sh[rol + "_gender"] = self.unknown_gender
-            eitem_sh[rol + "_gender_acc"] = 0
+        if not eitem_sh.get(f"{rol}_gender"):
+            eitem_sh[f"{rol}_gender"] = self.unknown_gender
+            eitem_sh[f"{rol}_gender_acc"] = 0
 
-        eitem_sh[rol + "_bot"] = self.is_bot(eitem_sh[rol + '_uuid'])
+        eitem_sh[f"{rol}_bot"] = self.is_bot(eitem_sh[f'{rol}_uuid'])
 
-        multi_enrolls = self.get_multi_enrollment(eitem_sh[rol + "_uuid"], item_date)
+        multi_enrolls = self.get_multi_enrollment(eitem_sh[f"{rol}_uuid"], item_date)
         main_enrolls = self.get_main_enrollments(multi_enrolls)
         all_enrolls = list(set(main_enrolls + multi_enrolls))
         eitem_sh[rol + MULTI_ORG_NAMES] = self.remove_prefix_enrollments(all_enrolls)
-        eitem_sh[rol + "_org_name"] = main_enrolls[0]
+        eitem_sh[f"{rol}_org_name"] = main_enrolls[0]
 
         return eitem_sh
 
@@ -862,13 +828,15 @@ class Enrich(ElasticItems):
         date = str_to_datetime(eitem[self.get_field_date()])
 
         for rol in roles:
-            if rol + "_id" not in eitem:
+            if f"{rol}_id" not in eitem:
                 # For example assignee in github it is usual that it does not appears
-                logger.debug("Enriched index does not include SH ids for {}_id. Can not refresh it.".format(rol))
+                logger.debug(
+                    f"Enriched index does not include SH ids for {rol}_id. Can not refresh it."
+                )
                 continue
-            sh_id = eitem[rol + "_id"]
+            sh_id = eitem[f"{rol}_id"]
             if not sh_id:
-                logger.debug("{}_id is None".format(rol))
+                logger.debug(f"{rol}_id is None")
                 continue
             if rol == author_field:
                 sh_id_author = sh_id
@@ -890,11 +858,11 @@ class Enrich(ElasticItems):
         date = str_to_datetime(eitem[self.get_field_date()])
 
         for rol in roles:
-            if rol + "_uuids" not in eitem:
+            if f"{rol}_uuids" not in eitem:
                 continue
-            sh_uuids = eitem[rol + "_uuids"]
+            sh_uuids = eitem[f"{rol}_uuids"]
             if not sh_uuids:
-                logger.debug("{}_uuids is None".format(rol))
+                logger.debug(f"{rol}_uuids is None")
                 continue
 
             for sh_uuid in sh_uuids:
@@ -906,16 +874,13 @@ class Enrich(ElasticItems):
 
     def add_meta_fields(self, eitem, meta_eitem, sh_fields, rol, uuid, suffixes, non_authored_prefix):
         def add_non_authored_fields(author_uuid, uuid, new_eitem, new_list, non_authored_field):
-            if author_uuid == uuid:
-                non_authored = []
-            else:
-                non_authored = new_list
+            non_authored = [] if author_uuid == uuid else new_list
             new_eitem[non_authored_field] = non_authored
 
         for suffix in suffixes:
             field = rol + suffix[:-1]
             if suffix == "_org_names":
-                field = rol + "_multi" + suffix
+                field = f"{rol}_multi{suffix}"
 
             new_list = sh_fields[field]
             if type(new_list) != list:
@@ -934,13 +899,7 @@ class Enrich(ElasticItems):
 
     def get_users_data(self, item):
         """ If user fields are inside the global item dict """
-        if 'data' in item:
-            users_data = item['data']
-        else:
-            # the item is directly the data (kitsune answer)
-            users_data = item
-
-        return users_data
+        return item['data'] if 'data' in item else item
 
     def get_item_sh(self, item, roles=None, date_field=None):
         """
@@ -973,14 +932,14 @@ class Enrich(ElasticItems):
 
                 eitem_sh.update(sh_fields)
 
-                if not eitem_sh[rol + '_org_name']:
-                    eitem_sh[rol + '_org_name'] = SH_UNKNOWN_VALUE
+                if not eitem_sh[f'{rol}_org_name']:
+                    eitem_sh[f'{rol}_org_name'] = SH_UNKNOWN_VALUE
 
-                if not eitem_sh[rol + '_name']:
-                    eitem_sh[rol + '_name'] = SH_UNKNOWN_VALUE
+                if not eitem_sh[f'{rol}_name']:
+                    eitem_sh[f'{rol}_name'] = SH_UNKNOWN_VALUE
 
-                if not eitem_sh[rol + '_user_name']:
-                    eitem_sh[rol + '_user_name'] = SH_UNKNOWN_VALUE
+                if not eitem_sh[f'{rol}_user_name']:
+                    eitem_sh[f'{rol}_user_name'] = SH_UNKNOWN_VALUE
 
         # Add the author field common in all data sources
         rol_author = 'author'
@@ -1028,14 +987,13 @@ class Enrich(ElasticItems):
         """ Return the Sorting Hat id and uuid for an identity """
         # Convert the dict to tuple so it is hashable
         identity_tuple = tuple(identity.items())
-        sh_ids = self.__get_sh_ids_cache(identity_tuple, backend_name)
-        return sh_ids
+        return self.__get_sh_ids_cache(identity_tuple, backend_name)
 
     @lru_cache()
     def __get_sh_ids_cache(self, identity_tuple, backend_name):
 
         # Convert tuple to the original dict
-        identity = dict((x, y) for x, y in identity_tuple)
+        identity = dict(identity_tuple)
 
         if not self.sortinghat:
             raise RuntimeError("Sorting Hat not active during enrich")
@@ -1049,7 +1007,7 @@ class Enrich(ElasticItems):
                 iden[field] = identity[field]
 
         if not iden['name'] and not iden['email'] and not iden['username']:
-            logger.warning("Name, email and username are none in {}".format(backend_name))
+            logger.warning(f"Name, email and username are none in {backend_name}")
             return sh_ids
 
         try:
@@ -1058,8 +1016,9 @@ class Enrich(ElasticItems):
                             name=iden['name'], username=iden['username'])
 
             if not id:
-                logger.warning("Id not found in SortingHat for name: {}, email: {} and username: {} in {}".format(
-                               iden['name'], iden['email'], iden['username'], backend_name))
+                logger.warning(
+                    f"Id not found in SortingHat for name: {iden['name']}, email: {iden['email']} and username: {iden['username']} in {backend_name}"
+                )
                 return sh_ids
 
             with self.sh_db.connect() as session:
@@ -1071,16 +1030,16 @@ class Enrich(ElasticItems):
                 sh_ids['id'] = identity_found.id
                 sh_ids['uuid'] = identity_found.uuid
         except InvalidValueError:
-            msg = "None Identity found {}".format(backend_name)
+            msg = f"None Identity found {backend_name}"
             logger.debug(msg)
         except NotFoundError:
-            msg = "Identity not found in SortingHat {}".format(backend_name)
+            msg = f"Identity not found in SortingHat {backend_name}"
             logger.debug(msg)
         except UnicodeEncodeError:
-            msg = "UnicodeEncodeError {}, identity: {}".format(backend_name, identity)
+            msg = f"UnicodeEncodeError {backend_name}, identity: {identity}"
             logger.error(msg)
         except Exception as ex:
-            msg = "Unknown error adding identity in SortingHat, {}, {}, {}".format(ex, backend_name, identity)
+            msg = f"Unknown error adding identity in SortingHat, {ex}, {backend_name}, {identity}"
             logger.error(msg)
 
         return sh_ids
@@ -1089,18 +1048,17 @@ class Enrich(ElasticItems):
         """Copy fields from item to enriched item."""
 
         for f in copy_fields:
-            if f in source:
-                target[f] = source[f]
-            else:
-                target[f] = None
+            target[f] = source[f] if f in source else None
 
     def enrich_onion(self, enrich_backend, alias, in_index, out_index, data_source,
                      contribs_field, timeframe_field, sort_on_field,
                      seconds=ONION_INTERVAL, no_incremental=False):
 
-        log_prefix = "[" + data_source + "] study onion"
+        log_prefix = f"[{data_source}] study onion"
 
-        logger.info("{}  starting study - Input: {} Output: {}".format(log_prefix, in_index, out_index))
+        logger.info(
+            f"{log_prefix}  starting study - Input: {in_index} Output: {out_index}"
+        )
 
         # Creating connections
         es = ES([enrich_backend.elastic.url], retry_on_timeout=True, timeout=100,
@@ -1117,28 +1075,25 @@ class Enrich(ElasticItems):
                                     read_only=False)
 
         if not in_conn.exists():
-            logger.info("{} missing index {}".format(log_prefix, in_index))
+            logger.info(f"{log_prefix} missing index {in_index}")
             return
 
-        # Check last execution date
-        latest_date = None
-        if out_conn.exists():
-            latest_date = out_conn.latest_enrichment_date()
-
+        latest_date = out_conn.latest_enrichment_date() if out_conn.exists() else None
         if latest_date:
-            logger.info("{} Latest enrichment date: {}".format(log_prefix, latest_date.isoformat()))
+            logger.info(f"{log_prefix} Latest enrichment date: {latest_date.isoformat()}")
             update_after = latest_date + timedelta(seconds=seconds)
-            logger.info("{} update after date: {}".format(log_prefix, update_after.isoformat()))
+            logger.info(f"{log_prefix} update after date: {update_after.isoformat()}")
             if update_after >= datetime_utcnow():
-                logger.info("{} too soon to update. Next update will be at {}".format(
-                            log_prefix, update_after.isoformat()))
+                logger.info(
+                    f"{log_prefix} too soon to update. Next update will be at {update_after.isoformat()}"
+                )
                 return
 
         # Onion currently does not support incremental option
-        logger.info("{} Creating out ES index".format(log_prefix))
+        logger.info(f"{log_prefix} Creating out ES index")
         # Initialize out index
         if (self.elastic.major == '7' and self.elastic.distribution == 'elasticsearch') or \
-           (self.elastic.major == '1' and self.elastic.distribution == 'opensearch'):
+               (self.elastic.major == '1' and self.elastic.distribution == 'opensearch'):
             filename = pkg_resources.resource_filename('grimoire_elk', 'enriched/mappings/onion_es7.json')
         else:
             filename = pkg_resources.resource_filename('grimoire_elk', 'enriched/mappings/onion.json')
@@ -1150,10 +1105,10 @@ class Enrich(ElasticItems):
         # Create alias if output index exists (index is always created from scratch, so
         # alias need to be created each time)
         if out_conn.exists() and not out_conn.exists_alias(out_index, alias):
-            logger.info("{} Creating alias: {}".format(log_prefix, alias))
+            logger.info(f"{log_prefix} Creating alias: {alias}")
             out_conn.create_alias(alias)
 
-        logger.info("{} end".format(log_prefix))
+        logger.info(f"{log_prefix} end")
 
     def enrich_extra_data(self, ocean_backend, enrich_backend, json_url, target_index=None):
         """

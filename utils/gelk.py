@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
     for connector in connectors:
         name = connector[0].get_name()
-        subparser = subparsers.add_parser(name, help='gelk %s -h' % name)
+        subparser = subparsers.add_parser(name, help=f'gelk {name} -h')
         # We need params for feed
         connector[0].add_params(subparser)
 
@@ -94,13 +94,9 @@ if __name__ == '__main__':
     ocean_backend = connector[1](backend, **vars(args))
     enrich_backend = connector[2](backend, **vars(args))
 
-    es_index = backend.get_name() + "_" + backend.get_id()
+    es_index = f"{backend.get_name()}_{backend.get_id()}"
 
-    clean = args.no_incremental
-
-    if args.cache:
-        clean = True
-
+    clean = True if args.cache else args.no_incremental
     try:
         # Ocean
         elastic_state = ElasticSearch(args.elastic_url,
@@ -109,7 +105,7 @@ if __name__ == '__main__':
                                       clean)
 
         # Enriched ocean
-        enrich_index = es_index + "_enrich"
+        enrich_index = f"{es_index}_enrich"
         elastic = ElasticSearch(args.elastic_url,
                                 enrich_index,
                                 enrich_backend.get_elastic_mappings(),
@@ -124,14 +120,13 @@ if __name__ == '__main__':
 
     try:
         # First feed the item in Ocean to use it later
-        logging.info("Adding data to %s" % (ocean_backend.elastic.index_url))
+        logging.info(f"Adding data to {ocean_backend.elastic.index_url}")
         ocean_backend.feed()
 
         if backend_name == "github":
             GitHub.users = enrich_backend.users_from_es()
 
-        logging.info("Adding enrichment data to %s" %
-                     (enrich_backend.elastic.index_url))
+        logging.info(f"Adding enrichment data to {enrich_backend.elastic.index_url}")
 
         items = []
         new_identities = []
@@ -161,7 +156,7 @@ if __name__ == '__main__':
 
         merged_identities = SortingHat.add_identities(new_identities, backend_name)
 
-        # Redo enrich for items with new merged identities
+            # Redo enrich for items with new merged identities
 
     except KeyboardInterrupt:
         logging.info("\n\nReceived Ctrl-C or other break signal. Exiting.\n")

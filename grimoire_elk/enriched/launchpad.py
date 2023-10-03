@@ -93,8 +93,7 @@ class LaunchpadEnrich(Enrich):
 
         for rol in self.roles:
             if rol in item['data']:
-                user = self.get_sh_identity(item, rol)
-                yield user
+                yield self.get_sh_identity(item, rol)
 
     @metadata
     def get_rich_item(self, item):
@@ -137,24 +136,21 @@ class LaunchpadEnrich(Enrich):
 
         if data['activity_data']:
             rich_bugtask['time_to_last_update_days'] = \
-                get_time_diff_days(data['date_created'], data['activity_data'][-1]['datechanged'])
+                    get_time_diff_days(data['date_created'], data['activity_data'][-1]['datechanged'])
 
         rich_bugtask['reopened'] = 1 if data['date_left_closed'] else 0
         rich_bugtask['time_to_fix_commit'] = get_time_diff_days(data['date_created'], data['date_fix_committed'])
         rich_bugtask['time_worked_on'] = get_time_diff_days(data['date_in_progress'], data['date_fix_committed'])
         rich_bugtask['time_to_confirm'] = get_time_diff_days(data['date_created'], data['date_confirmed'])
 
-        # Author and assignee data
-        owner = data.get('owner_data', None)
-        if owner:
+        if owner := data.get('owner_data', None):
             rich_bugtask['user_login'] = owner.get('name', None)
             rich_bugtask['user_name'] = owner.get('display_name', None)
             rich_bugtask['user_joined'] = owner.get('date_created', None)
             rich_bugtask['user_karma'] = owner.get('karma', None)
             rich_bugtask['user_time_zone'] = owner.get('time_zone', None)
 
-        assignee = data.get('assignee_data', None)
-        if assignee:
+        if assignee := data.get('assignee_data', None):
             assignee = data['assignee_data']
             rich_bugtask['assignee_login'] = assignee.get('name', None)
             rich_bugtask['assignee_name'] = assignee.get('display_name', None)
@@ -166,20 +162,20 @@ class LaunchpadEnrich(Enrich):
         rich_bugtask.update(self.__extract_bug_info(data['bug_data']))
 
         rich_bugtask['time_to_first_attention'] = \
-            get_time_diff_days(data['date_created'], self.get_time_to_first_attention(data))
+                get_time_diff_days(data['date_created'], self.get_time_to_first_attention(data))
         rich_bugtask['activity_count'] = len(data['activity_data'])
 
         return rich_bugtask
 
     def __extract_bug_info(self, bug_data):
 
-        rich_bug_info = {}
-
         copy_fields = ["latest_patch_uploaded", "security_related", "private", "users_affected_count",
                        "title", "description", "tags", "date_last_updated", "message_count", "heat"]
-        rich_bug_info['time_created_to_last_update_days'] = \
-            get_time_diff_days(bug_data['date_created'], bug_data['date_last_updated'])
-
+        rich_bug_info = {
+            'time_created_to_last_update_days': get_time_diff_days(
+                bug_data['date_created'], bug_data['date_last_updated']
+            )
+        }
         rich_bug_info['description'] = bug_data['description'][:self.KEYWORD_MAX_LENGTH]
         rich_bug_info['description_analyzed'] = bug_data['description']
         rich_bug_info['bug_name'] = bug_data['name']
@@ -198,6 +194,4 @@ class LaunchpadEnrich(Enrich):
         activity_dates = [activity['datechanged'] for activity in item['activity_data']
                           if item['owner_data'].get('name', None) != activity['person_data'].get('name', None)]
         activity_dates.extend(message_dates)
-        if activity_dates:
-            return min(activity_dates)
-        return None
+        return min(activity_dates, default=None)

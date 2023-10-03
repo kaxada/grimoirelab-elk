@@ -97,24 +97,19 @@ class GitHubQLEnrich(Enrich):
         """Return the identities from an item"""
 
         event = item['data']
-        event_actor = event.get("actor", event.get("author", None))
-        if event_actor:
-            identity = self.get_sh_identity(event_actor)
-            if identity:
+        if event_actor := event.get("actor", event.get("author", None)):
+            if identity := self.get_sh_identity(event_actor):
                 yield identity
 
         issue = event['issue']
-        issue_reporter = issue.get("user", None)
-        if issue_reporter:
-            identity = self.get_sh_identity(issue_reporter)
-            if identity:
+        if issue_reporter := issue.get("user", None):
+            if identity := self.get_sh_identity(issue_reporter):
                 yield identity
 
         closer = event.get('closer', None)
         if closer and closer['type'] == 'PullRequest':
             pull_submitter = closer.get('author', None)
-            identity = self.get_sh_identity(pull_submitter)
-            if identity:
+            if identity := self.get_sh_identity(pull_submitter):
                 yield identity
 
     def get_sh_identity(self, item, identity_field=None):
@@ -127,8 +122,7 @@ class GitHubQLEnrich(Enrich):
             elif identity_field == 'reporter':
                 user = item['data']['issue']['user']
             elif identity_field == 'submitter':
-                closer = item['data'].get('closer', None)
-                if closer:
+                if closer := item['data'].get('closer', None):
                     user = closer['author']
 
         if not user:
@@ -141,8 +135,7 @@ class GitHubQLEnrich(Enrich):
         return identity
 
     def get_project_repository(self, eitem):
-        repo = eitem['origin']
-        return repo
+        return eitem['origin']
 
     @metadata
     def get_rich_item(self, item):
@@ -277,7 +270,7 @@ class GitHubQLEnrich(Enrich):
             rich_event['merge_url'] = review['url']
             item['data']['actor'] = item['data']['author']
         else:
-            logger.warning("[github] event {} not processed".format(rich_event['event_type']))
+            logger.warning(f"[github] event {rich_event['event_type']} not processed")
 
         if self.prjs_map:
             rich_event.update(self.get_item_project(rich_event))
@@ -346,8 +339,10 @@ class GitHubQLEnrich(Enrich):
         :param page_size: number of events without `duration_from_previous_event` per page
         """
         data_source = enrich_backend.__class__.__name__.split("Enrich")[0].lower()
-        log_prefix = "[{}] Duration analysis".format(data_source)
-        logger.info("{} starting study {}".format(log_prefix, anonymize_url(self.elastic.index_url)))
+        log_prefix = f"[{data_source}] Duration analysis"
+        logger.info(
+            f"{log_prefix} starting study {anonymize_url(self.elastic.index_url)}"
+        )
 
         es_in = ES([enrich_backend.elastic_url], retry_on_timeout=True, timeout=100,
                    verify_certs=self.elastic.requests.verify, connection_class=RequestsHttpConnection)
@@ -456,7 +451,7 @@ class GitHubQLEnrich(Enrich):
                 duration = get_time_diff_days(previous_event_date, start_date_event)
 
                 painless_code = "ctx._source.duration_from_previous_event=params.duration;" \
-                                "ctx._source.previous_event_uuid=params.uuid"
+                                    "ctx._source.previous_event_uuid=params.uuid"
 
                 add_previous_event_query = {
                     "script": {
@@ -479,8 +474,9 @@ class GitHubQLEnrich(Enrich):
                 }
                 r = es_in.update_by_query(index=in_index, body=add_previous_event_query, conflicts='proceed')
                 if r['failures']:
-                    logger.error("{} Error while executing study {}".format(log_prefix,
-                                                                            anonymize_url(self.elastic.index_url)))
+                    logger.error(
+                        f"{log_prefix} Error while executing study {anonymize_url(self.elastic.index_url)}"
+                    )
                     logger.error(str(r['failures'][0]))
                     return
 
@@ -490,7 +486,9 @@ class GitHubQLEnrich(Enrich):
             # get the number of results that returned in the last scroll
             scroll_size = len(start_event_types['hits']['hits'])
 
-        logger.info("{} ending study {}".format(log_prefix, anonymize_url(self.elastic.index_url)))
+        logger.info(
+            f"{log_prefix} ending study {anonymize_url(self.elastic.index_url)}"
+        )
 
     def enrich_reference_analysis(self, ocean_backend, enrich_backend, aliases_update=None):
         """
@@ -646,7 +644,7 @@ class GitHubQLEnrich(Enrich):
                 reference_dict[issue_url] = list(set(prev_references))
 
         # Adding list entries from reversed references
-        for issue_url in reference_dict.keys():
+        for issue_url in reference_dict:
             reference_list = reference_dict[issue_url]
             if not reference_list:
                 continue
@@ -670,7 +668,7 @@ class GitHubQLEnrich(Enrich):
             ctx._source.referenced_by_external_prs = params.referenced_by_external_prs;
             ctx._source.referenced_by_external_merged_prs = params.referenced_by_external_merged_prs;
         """
-        for issue_url in reference_dict.keys():
+        for issue_url in reference_dict:
             ref_issues_repo = []
             ref_prs_repo = []
             ref_prs_merged_repo = []

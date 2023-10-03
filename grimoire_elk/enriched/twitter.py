@@ -64,11 +64,7 @@ class TwitterEnrich(Enrich):
         return "user"
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-        identity['username'] = None
-        identity['email'] = None
-        identity['name'] = None
-
+        identity = {'username': None, 'email': None, 'name': None}
         if identity_field is None:
             identity_field = self.get_field_author()
 
@@ -85,9 +81,7 @@ class TwitterEnrich(Enrich):
         """ Return the identities from an item """
 
         item = item['data']
-        user = self.get_sh_identity(item)
-
-        yield user
+        yield self.get_sh_identity(item)
 
     def get_item_project(self, eitem):
         """ Get project mapping enrichment field.
@@ -132,11 +126,7 @@ class TwitterEnrich(Enrich):
                        "text", "in_reply_to_user_id_str",
                        "in_reply_to_screen_name"]
         for f in copy_fields:
-            if f in tweet:
-                eitem[f] = tweet[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = tweet[f] if f in tweet else None
         # Date fields
         eitem["created_at"] = str_to_datetime(tweet["created_at"]).isoformat()
 
@@ -145,11 +135,7 @@ class TwitterEnrich(Enrich):
                        "friends_count", "id_str", "location", "name",
                        "url", "verified"]
         for f in copy_fields:
-            if f in tweet['user']:
-                eitem["user_" + f] = tweet['user'][f]
-            else:
-                eitem["user_" + f] = None
-
+            eitem[f"user_{f}"] = tweet['user'][f] if f in tweet['user'] else None
         if "text" in tweet:
             eitem["text_analyzed"] = tweet["text"]
 

@@ -53,9 +53,7 @@ def get_params():
                         help='Initial value for starting the search-after')
     parser.add_argument('-c', '--copy', dest='copy', action='store_true',
                         help='Copy the indexes without modifying mappings')
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 
 def find_uuid(es_url, index):
@@ -64,7 +62,7 @@ def find_uuid(es_url, index):
     uid_field = None
 
     # Get the first item to detect the data source and raw/enriched type
-    res = requests.get('%s/%s/_search?size=1' % (es_url, index))
+    res = requests.get(f'{es_url}/{index}/_search?size=1')
     first_item = res.json()['hits']['hits'][0]['_source']
     fields = first_item.keys()
 
@@ -96,7 +94,7 @@ def find_perceval_backend(es_url, index):
     connectors = get_connectors()
 
     # Get the first item to detect the data source and raw/enriched type
-    res = requests.get('%s/%s/_search?size=1' % (es_url, index))
+    res = requests.get(f'{es_url}/{index}/_search?size=1')
     first_item = res.json()['hits']['hits'][0]['_source']
     fields = first_item.keys()
     if 'metadata__enriched_on' in fields:
@@ -131,9 +129,7 @@ def find_mapping(es_url, index):
 
     mapping = None
 
-    backend = find_perceval_backend(es_url, index)
-
-    if backend:
+    if backend := find_perceval_backend(es_url, index):
         mapping = backend.get_elastic_mappings()
 
     if mapping:
@@ -145,7 +141,7 @@ def get_elastic_items(elastic, elastic_scroll_id=None, limit=None):
     """ Get the items from the index """
 
     scroll_size = limit
-    if not limit:
+    if not scroll_size:
         scroll_size = DEFAULT_LIMIT
 
     if not elastic:
@@ -193,7 +189,7 @@ def extract_mapping(elastic_url, in_index):
 
     mappings = None
 
-    url = elastic_url + "/_mapping"
+    url = f"{elastic_url}/_mapping"
 
     res = requests.get(url)
     res.raise_for_status()
@@ -218,7 +214,7 @@ def get_elastic_items_search(elastic, search_after=None, size=None):
     if not size:
         size = DEFAULT_LIMIT
 
-    url = elastic.index_url + "/_search"
+    url = f"{elastic.index_url}/_search"
 
     search_after_query = ''
 
@@ -308,7 +304,7 @@ def export_items(elastic_url, in_index, out_index, elastic_url_out=None,
 
     logging.info("Exporting items from %s/%s to %s", elastic_url, in_index, out_index)
 
-    count_res = requests.get('%s/%s/_count' % (elastic_url, in_index))
+    count_res = requests.get(f'{elastic_url}/{in_index}/_count')
     try:
         count_res.raise_for_status()
     except requests.exceptions.HTTPError:

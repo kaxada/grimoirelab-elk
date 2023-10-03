@@ -91,19 +91,12 @@ class PhabricatorEnrich(Enrich):
         """ Return the identities from an item """
 
         if 'authorData' in item['data']['fields']:
-            user = self.get_sh_identity(item['data']['fields']['authorData'])
-            yield user
-
+            yield self.get_sh_identity(item['data']['fields']['authorData'])
         if 'ownerData' in item['data']['fields']:
-            user = self.get_sh_identity(item['data']['fields']['ownerData'])
-            yield user
+            yield self.get_sh_identity(item['data']['fields']['ownerData'])
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-
-        identity['email'] = None
-        identity['username'] = None
-        identity['name'] = None
+        identity = {'email': None, 'username': None, 'name': None}
 
         if item is None:
             return identity
@@ -124,12 +117,7 @@ class PhabricatorEnrich(Enrich):
 
     def get_users_data(self, item):
         """ If user fields are inside the global item dict """
-        if 'data' in item:
-            users_data = item['data']['fields']
-        else:
-            # the item is directly the data (kitsune answer)
-            users_data = item
-        return users_data
+        return item['data']['fields'] if 'data' in item else item
 
     def get_rich_events(self, item):
         """
@@ -150,9 +138,7 @@ class PhabricatorEnrich(Enrich):
 
         # Follow changes in this fields
         task_fields_change = ['priority_value', 'status', 'assigned_to_userName', 'tags_custom_analyzed']
-        task_change = {}
-        for f in task_fields_change:
-            task_change[f] = None
+        task_change = {f: None for f in task_fields_change}
         task_change['status'] = TASK_OPEN_STATUS
         task_change['tags_custom_analyzed'] = eitem['tags_custom_analyzed']
 
@@ -163,14 +149,13 @@ class PhabricatorEnrich(Enrich):
             return []
 
         for t in transactions:
-            event = {}
-            # Needed for incremental updates from the item
-            event['metadata__updated_on'] = item['metadata__updated_on']
-            event['origin'] = item['origin']
-            # Real event data
-            event['transactionID'] = t['transactionID']
-            event['type'] = t['transactionType']
-            event['username'] = None
+            event = {
+                'metadata__updated_on': item['metadata__updated_on'],
+                'origin': item['origin'],
+                'transactionID': t['transactionID'],
+                'type': t['transactionType'],
+                'username': None,
+            }
             if 'authorData' in t and 'userName' in t['authorData']:
                 event['event_author_name'] = t['authorData']['userName']
             event['update_date'] = unixtime_to_datetime(float(t['dateCreated'])).isoformat()
@@ -180,12 +165,12 @@ class PhabricatorEnrich(Enrich):
                 for val in t['oldValue']:
                     if val in self.phab_ids_names:
                         val = self.phab_ids_names[val]
-                    event['oldValue'] += "," + val
+                    event['oldValue'] += f",{val}"
                 event['oldValue'] = event['oldValue'][1:]  # remove first comma
                 for val in t['newValue']:
                     if val in self.phab_ids_names:
                         val = self.phab_ids_names[val]
-                    event['newValue'] += "," + val
+                    event['newValue'] += f",{val}"
                 event['newValue'] = event['newValue'][1:]  # remove first comma
             elif event['type'] in ['status', 'description', 'priority', 'reassign', 'title', 'space', 'core:create', 'parent']:
                 # Convert to str so the field is always a string
@@ -199,10 +184,6 @@ class PhabricatorEnrich(Enrich):
                 event['newValue'] = t['comments']
             elif event['type'] == 'core:subscribers':
                 event['newValue'] = ",".join(t['newValue'])
-            else:
-                # logger.debug("Event type %s old to new value not supported", t['transactionType'])
-                pass
-
             for f in task_fields_nochange:
                 # The field name must be the same than in task for filtering
                 event[f] = eitem[f]
@@ -263,20 +244,13 @@ class PhabricatorEnrich(Enrich):
         # data fields to copy
         copy_fields = ["phid", "id", "type"]
         for f in copy_fields:
-            if f in phab_item:
-                eitem[f] = phab_item[f]
-            else:
-                eitem[f] = None
+            eitem[f] = phab_item[f] if f in phab_item else None
         # Fields which names are translated
         map_fields = {
             "id": "bug_id"
         }
         for f in map_fields:
-            if f in phab_item:
-                eitem[map_fields[f]] = phab_item[f]
-            else:
-                eitem[map_fields[f]] = None
-
+            eitem[map_fields[f]] = phab_item[f] if f in phab_item else None
         eitem['num_changes'] = len(phab_item['transactions'])
 
         if 'authorData' in phab_item['fields'] and phab_item['fields']['authorData']:
@@ -320,22 +294,28 @@ class PhabricatorEnrich(Enrich):
         phab_item['transactions'].reverse()
         for change in phab_item['transactions']:
             change_date = unixtime_to_datetime(float(change['dateCreated'])).isoformat()
-            if change["transactionType"] == "reassign":
+            if (
+                change["transactionType"] != "reassign"
+                and change["transactionType"] not in ["mergedinto"]
+                and change["transactionType"] in ["status"]
+                and change['newValue'] in CLOSED_STATUSES
+                or change["transactionType"] != "reassign"
+                and change["transactionType"] in ["mergedinto"]
+            ):
+                eitem['closed_at'] = change_date
+                eitem['time_to_close_days'] = get_time_diff_days(eitem['creation_date'], eitem['closed_at'])
+            elif (
+                change["transactionType"] == "reassign"
+                or change["transactionType"] not in ["status"]
+            ) and change["transactionType"] == "reassign":
                 if not eitem['time_to_assign_days']:
                     eitem['time_to_assign_days'] = get_time_diff_days(eitem['creation_date'], change_date)
                     first_assignee_phid = change['newValue']
                     first_assignee_date = change_date
                 if 'authorData' in change and change['authorData'] and 'userName' in change['authorData'] \
-                        and change['authorData']['userName'] not in changes_assignee_list:
+                            and change['authorData']['userName'] not in changes_assignee_list:
                     changes_assignee_list.append(change['authorData']['userName'])
                 eitem['changes_assignment'] += 1
-            elif change["transactionType"] in ["mergedinto"]:
-                eitem['closed_at'] = change_date
-                eitem['time_to_close_days'] = get_time_diff_days(eitem['creation_date'], eitem['closed_at'])
-            elif change["transactionType"] in ["status"]:
-                if change['newValue'] in CLOSED_STATUSES:
-                    eitem['closed_at'] = change_date
-                    eitem['time_to_close_days'] = get_time_diff_days(eitem['creation_date'], eitem['closed_at'])
             if not eitem['time_to_attend_days'] and first_assignee_phid:
                 if 'authorData' in change and change['authorData'] and change['authorData']['phid'] == first_assignee_phid:
                     eitem['time_to_attend_days'] = get_time_diff_days(first_assignee_date, change_date)
@@ -362,11 +342,11 @@ class PhabricatorEnrich(Enrich):
         eitem.update(self.get_grimoire_fields(eitem['creation_date'], "task"))
 
         assigned_to = {}
-        for f in eitem.keys():
+        for f in eitem:
             if 'ownerData' in f:
                 # Copy all ownerData data fields to assigned_to fields
                 of = f.split('ownerData')[1]
-                assigned_to['assigned_to' + of] = eitem[f]
+                assigned_to[f'assigned_to{of}'] = eitem[f]
         eitem.update(assigned_to)
 
         self.add_repository_labels(eitem)

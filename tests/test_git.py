@@ -68,7 +68,7 @@ class TestGit(TestBaseBackend):
         aliases = self.ocean_backend.elastic.list_aliases()
         self.assertListEqual(self.ocean_aliases, list(aliases.keys()))
 
-        url = self.es_con + "/" + self.ocean_index + "/_search?size=20"
+        url = f"{self.es_con}/{self.ocean_index}/_search?size=20"
         response = self.ocean_backend.requests.get(url, verify=False).json()
 
         time.sleep(5)  # HACK: Wait until git enrich index has been written
@@ -160,7 +160,7 @@ class TestGit(TestBaseBackend):
         self.assertEqual(result['enrich'], 16)
 
         enrich_backend = self.connectors[self.connector][2](pair_programming=True)
-        url = self.es_con + "/" + self.enrich_index + "/_search?size=20"
+        url = f"{self.es_con}/{self.enrich_index}/_search?size=20"
         response = enrich_backend.requests.get(url, verify=False).json()
 
         time.sleep(5)  # HACK: Wait until git enrich index has been written
@@ -232,7 +232,7 @@ class TestGit(TestBaseBackend):
         self.assertEqual(result['raw'], 11)
         self.assertEqual(result['enrich'], 11)
         enrich_backend = self.connectors[self.connector][2]()
-        url = self.es_con + "/" + self.enrich_index + "/_search?size=20"
+        url = f"{self.es_con}/{self.enrich_index}/_search?size=20"
         response = enrich_backend.requests.get(url, verify=False).json()
 
         for hit in response['hits']['hits']:
@@ -289,7 +289,7 @@ class TestGit(TestBaseBackend):
                              % anonymize_url(self.es_con))
 
         time.sleep(5)  # HACK: Wait until git enrich index has been written
-        items = [item for item in enrich_backend.fetch()]
+        items = list(enrich_backend.fetch())
         self.assertEqual(len(items), 11)
         for item in items:
             self.assertTrue('demography_min_date' in item.keys())
@@ -297,8 +297,11 @@ class TestGit(TestBaseBackend):
             self.assertNotIn('username:password', item['origin'])
             self.assertNotIn('username:password', item['tag'])
 
-        r = enrich_backend.elastic.requests.get(enrich_backend.elastic.index_url + "/_alias",
-                                                headers=HEADER_JSON, verify=False)
+        r = enrich_backend.elastic.requests.get(
+            f"{enrich_backend.elastic.index_url}/_alias",
+            headers=HEADER_JSON,
+            verify=False,
+        )
         self.assertIn(alias, r.json()[enrich_backend.elastic.index]['aliases'])
 
     def test_extra_study(self):
@@ -314,7 +317,7 @@ class TestGit(TestBaseBackend):
                                "ba298a6fb09558e68c5e4ec6ae23b1c89fe920ef/test_extra_study.txt")
 
         time.sleep(5)  # HACK: Wait until git enrich index has been written
-        items = [item for item in enrich_backend.fetch()]
+        items = list(enrich_backend.fetch())
         self.assertEqual(len(items), 11)
         for item in items:
             if item['origin'] == '/tmp/perceval_mc84igfc/gittest':
@@ -338,7 +341,7 @@ class TestGit(TestBaseBackend):
                                                 '[enrich-forecast-activity] End study')
 
         time.sleep(5)  # HACK: Wait until git enrich index has been written
-        url = self.es_con + "/test_git_study_forecast_activity/_search?size=20"
+        url = f"{self.es_con}/test_git_study_forecast_activity/_search?size=20"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']
@@ -374,13 +377,13 @@ class TestGit(TestBaseBackend):
         study, ocean_backend, enrich_backend = self._test_study('enrich_onion')
         study(ocean_backend, enrich_backend, alias, in_index='test_git_enrich', out_index='test_git_onion')
 
-        url = self.es_con + "/_aliases"
+        url = f"{self.es_con}/_aliases"
         response = requests.get(url, verify=False).json()
         self.assertTrue('test_git_onion' in response)
 
         time.sleep(1)
 
-        url = self.es_con + "/test_git_onion/_search?size=20"
+        url = f"{self.es_con}/test_git_onion/_search?size=20"
         response = requests.get(url, verify=False).json()
         hits = response['hits']['hits']
         self.assertEqual(len(hits), 16)
@@ -426,7 +429,7 @@ class TestGit(TestBaseBackend):
 
         study(ocean_backend, enrich_backend, alias, in_index='test_git', out_index='test_git_aoc')
         time.sleep(5)  # HACK: Wait until git area of code has been written
-        url = self.es_con + "/test_git_aoc/_search?size=20"
+        url = f"{self.es_con}/test_git_aoc/_search?size=20"
         response = enrich_backend.requests.get(url, verify=False).json()
         hits = response['hits']['hits']
         self.assertEqual(len(hits), 12)
@@ -497,7 +500,7 @@ class TestGit(TestBaseBackend):
 
         study(ocean_backend, enrich_backend, alias, in_index='test_git', out_index='test_git_aoc_repo_name')
         time.sleep(5)  # HACK: Wait until git area of code has been written
-        url = self.es_con + "/test_git_aoc_repo_name/_search?size=20"
+        url = f"{self.es_con}/test_git_aoc_repo_name/_search?size=20"
         response = enrich_backend.requests.get(url, verify=False).json()
         hits = response['hits']['hits']
         self.assertEqual(len(hits), 2)
@@ -532,7 +535,7 @@ class TestGit(TestBaseBackend):
 
         study(ocean_backend, enrich_backend, alias, in_index='test_git', out_index='test_git_aoc_anonymized')
         time.sleep(5)  # HACK: Wait until git area of code has been written
-        url = self.es_con + "/test_git_aoc_anonymized/_search?size=20"
+        url = f"{self.es_con}/test_git_aoc_anonymized/_search?size=20"
         response = enrich_backend.requests.get(url, verify=False).json()
         hits = response['hits']['hits']
         self.assertEqual(len(hits), 2)
@@ -583,7 +586,7 @@ class TestGit(TestBaseBackend):
 
         study, ocean_backend, enrich_backend = self._test_study('enrich_git_branches')
 
-        items = [item for item in enrich_backend.fetch()]
+        items = list(enrich_backend.fetch())
         self.assertEqual(len(items), 11)
         for item in items:
             self.assertTrue('branches' in item.keys())
@@ -610,13 +613,15 @@ class TestGit(TestBaseBackend):
                                                                 prjs_map=prjs_map,
                                                                 projects_json_repo=projects_json_repo)
 
-        today = datetime.datetime.today().day
+        today = datetime.datetime.now().day
         with self.assertLogs(git_logger, level='INFO') as cm:
             if study.__name__ == "enrich_git_branches":
                 study(ocean_backend, enrich_backend, run_month_days=[today])
                 self.assertEqual(cm.output[0], 'INFO:grimoire_elk.enriched.git:[git] study git-branches start')
-                self.assertEqual(cm.output[1], 'INFO:grimoire_elk.enriched.git:[git] study git-branches skipping'
-                                               ' repo {}'.format(projects_json_repo))
+                self.assertEqual(
+                    cm.output[1],
+                    f'INFO:grimoire_elk.enriched.git:[git] study git-branches skipping repo {projects_json_repo}',
+                )
                 self.assertEqual(cm.output[-1], 'INFO:grimoire_elk.enriched.git:[git] study git-branches end')
 
     def test_enrich_git_branches_study_skip_uncloned_repository(self):
@@ -643,17 +648,19 @@ class TestGit(TestBaseBackend):
         # Remove the clone
         base_path = os.path.expanduser('~/.perceval/repositories/')
         processed_uri = projects_json_repo.lstrip('/')
-        git_path = os.path.join(base_path, processed_uri) + '-git'
+        git_path = f'{os.path.join(base_path, processed_uri)}-git'
         if os.path.exists(git_path) and os.path.isdir(git_path):
             shutil.rmtree(git_path, ignore_errors=True)
 
-        today = datetime.datetime.today().day
+        today = datetime.datetime.now().day
         with self.assertLogs(git_logger, level='INFO') as cm:
             if study.__name__ == "enrich_git_branches":
                 study(ocean_backend, enrich_backend, run_month_days=[today])
                 self.assertEqual(cm.output[0], 'INFO:grimoire_elk.enriched.git:[git] study git-branches start')
-                self.assertEqual(cm.output[1], 'ERROR:grimoire_elk.enriched.git:[git] study git-branches skipping'
-                                               ' not cloned repo {}'.format(projects_json_repo))
+                self.assertEqual(
+                    cm.output[1],
+                    f'ERROR:grimoire_elk.enriched.git:[git] study git-branches skipping not cloned repo {projects_json_repo}',
+                )
                 self.assertEqual(cm.output[-1], 'INFO:grimoire_elk.enriched.git:[git] study git-branches end')
 
     def test_perceval_params(self):

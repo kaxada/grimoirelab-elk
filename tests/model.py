@@ -193,10 +193,7 @@ class ESMapping(Schema):
                 # we will assume that fields defined as text in CSVs
                 # must be aggregatables in ESMapping.
                 property_type = row['type']
-                if property_type == 'text':
-                    agg = True
-                else:
-                    agg = None
+                agg = True if property_type == 'text' else None
                 es_mapping.add_property(pname=row['name'], ptype=property_type,
                                         agg=agg)
 
@@ -261,7 +258,7 @@ class ESMapping(Schema):
                 # },
                 if 'properties' in value:
                     for nested_prop, nested_value in value['properties'].items():
-                        prop_name = prop + '.' + nested_prop
+                        prop_name = f'{prop}.{nested_prop}'
                         agg = None
 
                         if 'fielddata' in nested_value:
@@ -276,10 +273,6 @@ class ESMapping(Schema):
                                                 ptype=ptype,
                                                 agg=agg)
 
-                # Support for "regular" properties
-                # "channel_id": {
-                #   "type": "keyword"
-                # },
                 else:
                     agg = None
                     if 'fielddata' in value:
@@ -308,8 +301,5 @@ class ESMapping(Schema):
         # aggregatables depending on their type
         schema_agg = agg
         if schema_agg is None:
-            if schema_type in self.__non_aggregatables:
-                schema_agg = False
-            else:
-                schema_agg = True
+            schema_agg = schema_type not in self.__non_aggregatables
         super().add_property(pname, schema_type, schema_agg)

@@ -63,8 +63,7 @@ class RSSEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        user = self.get_sh_identity(item, self.get_field_author())
-        yield user
+        yield self.get_sh_identity(item, self.get_field_author())
 
     def get_field_author(self):
         return 'author'
@@ -76,11 +75,7 @@ class RSSEnrich(Enrich):
         if isinstance(item, dict) and 'data' in item:
             entry = item['data']
 
-        identity = {}
-        identity['username'] = None
-        identity['email'] = None
-        identity['name'] = None
-
+        identity = {'username': None, 'email': None, 'name': None}
         if identity_field in entry:
             identity['username'] = entry[identity_field]
             identity['name'] = entry[identity_field]
@@ -97,10 +92,7 @@ class RSSEnrich(Enrich):
         # data fields to copy
         copy_fields = ["title", "summary", "author", "avatar", "published", "link"]
         for f in copy_fields:
-            if f in entry:
-                eitem[f] = entry[f]
-            else:
-                eitem[f] = None
+            eitem[f] = entry[f] if f in entry else None
         # Fields which names are translated
         map_fields = {"summary": "summary_analyzed"
                       }

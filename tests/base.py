@@ -45,10 +45,8 @@ SCHEMA_DIR = '../schema/'
 
 def load_mapping(enrich_index, csv_name):
 
-    cvs_path = os.path.join(SCHEMA_DIR, csv_name + '.csv')
-    cvs_mapping = ESMapping.from_csv(enrich_index, cvs_path)
-
-    return cvs_mapping
+    cvs_path = os.path.join(SCHEMA_DIR, f'{csv_name}.csv')
+    return ESMapping.from_csv(enrich_index, cvs_path)
 
 
 def data2es(items, ocean):
@@ -134,7 +132,7 @@ class TestBaseBackend(unittest.TestCase):
                 cls.db_password = cls.config['Database']['password']
 
     def setUp(self):
-        with open(os.path.join("data", self.connector + ".json")) as f:
+        with open(os.path.join("data", f"{self.connector}.json")) as f:
             self.items = json.load(f)
 
         self.ocean_backend = None
@@ -143,7 +141,7 @@ class TestBaseBackend(unittest.TestCase):
         self.enrich_aliases = []
 
     def tearDown(self):
-        delete_test_idx = self.es_con + "/" + 'test*'
+        delete_test_idx = f"{self.es_con}/test*"
         requests.delete(delete_test_idx, verify=False)
 
     def _test_items_to_raw(self):
@@ -177,7 +175,7 @@ class TestBaseBackend(unittest.TestCase):
             self.enrich_backend = self.connectors[self.connector][2](db_sortinghat=DB_SORTINGHAT,
                                                                      db_user=self.db_user,
                                                                      db_password=self.db_password)
-        elif not sortinghat and projects:
+        elif not sortinghat:
             self.enrich_backend = self.connectors[self.connector][2](json_projects_map=FILE_PROJECTS,
                                                                      db_user=self.db_user,
                                                                      db_password=self.db_password)
@@ -191,7 +189,7 @@ class TestBaseBackend(unittest.TestCase):
         if sortinghat:
             load_identities(self.ocean_backend, self.enrich_backend)
 
-        raw_count = len([item for item in self.ocean_backend.fetch()])
+        raw_count = len(list(self.ocean_backend.fetch()))
         enrich_count = self.enrich_backend.enrich_items(self.ocean_backend)
         # self._test_csv_mappings(sortinghat)
 
@@ -235,8 +233,7 @@ class TestBaseBackend(unittest.TestCase):
         self.enrich_backend.set_elastic(elastic_enrich)
         self.enrich_backend.enrich_items(self.ocean_backend)
 
-        total = refresh_identities(self.enrich_backend)
-        return total
+        return refresh_identities(self.enrich_backend)
 
     def _test_refresh_project(self):
         """Test refresh project field"""
@@ -258,8 +255,7 @@ class TestBaseBackend(unittest.TestCase):
         self.enrich_backend.set_elastic(elastic_enrich)
         self.enrich_backend.enrich_items(self.ocean_backend)
 
-        total = refresh_projects(self.enrich_backend)
-        return total
+        return refresh_projects(self.enrich_backend)
 
     def _test_study(self, test_study, projects_json_repo=None, projects_json=None, prjs_map=None):
         """Test the execution of a study"""
@@ -328,7 +324,7 @@ class TestBaseBackend(unittest.TestCase):
         elastic_enrich = get_elastic(self.es_con, self.enrich_index_anonymized, clean, self.enrich_backend, self.enrich_aliases)
         self.enrich_backend.set_elastic(elastic_enrich)
 
-        raw_count = len([item for item in self.ocean_backend.fetch()])
+        raw_count = len(list(self.ocean_backend.fetch()))
         enrich_count = self.enrich_backend.enrich_items(self.ocean_backend)
 
         return {'raw': raw_count, 'enrich': enrich_count}

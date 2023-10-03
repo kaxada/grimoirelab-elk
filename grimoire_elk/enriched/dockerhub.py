@@ -71,10 +71,7 @@ class DockerHubEnrich(Enrich):
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        # In DockerHub there are no identities. Just the organization and
-        # the repository name for the docker image
-        identities = []
-        return identities
+        return []
 
     def has_identities(self):
         """ Return whether the enriched items contains identities """
@@ -94,11 +91,7 @@ class DockerHubEnrich(Enrich):
                        "is_automated", "is_private", "pull_count", "repository_type",
                        "star_count", "status", "user"]
         for f in copy_fields:
-            if f in image:
-                eitem[f] = image[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = image[f] if f in image else None
         # Fields which names are translated
         map_fields = {}
         for fn in map_fields:
@@ -133,7 +126,9 @@ class DockerHubEnrich(Enrich):
 
         url = self.elastic.get_bulk_url()
 
-        logger.debug("[dockerhub] Adding items to {} (in {} packs)".format(anonymize_url(url), max_items))
+        logger.debug(
+            f"[dockerhub] Adding items to {anonymize_url(url)} (in {max_items} packs)"
+        )
 
         for item in items:
             if current >= max_items:
@@ -147,7 +142,7 @@ class DockerHubEnrich(Enrich):
             rich_item = self.get_rich_item(item)
             data_json = json.dumps(rich_item)
             bulk_json += '{"index" : {"_id" : "%s" } }\n' % \
-                (item[self.get_field_unique_id()])
+                    (item[self.get_field_unique_id()])
             bulk_json += data_json + "\n"  # Bulk document
             current += 1
 
@@ -174,11 +169,10 @@ class DockerHubEnrich(Enrich):
         # Time to upload the images enriched items. The id is uuid+"_image"
         # Normally we are enriching events for a unique image so all images
         # data can be upload in one query
-        for image in images_items:
-            data = images_items[image]
+        for data in images_items.values():
             data_json = json.dumps(data)
             bulk_json += '{"index" : {"_id" : "%s" } }\n' % \
-                (data['id'] + "_image")
+                    (data['id'] + "_image")
             bulk_json += data_json + "\n"  # Bulk document
 
         total += self.elastic.safe_put_bulk(url, bulk_json)

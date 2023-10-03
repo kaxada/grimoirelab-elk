@@ -57,11 +57,7 @@ class RocketChatOcean(ElasticOcean):
     def get_perceval_params_from_url(cls, url):
         """ Get the perceval params given a URL for the data source """
 
-        params = []
-
         tokens = url.split(' ')
         server = tokens[0]
         channel = tokens[1]
-        params.append(server)
-        params.append(channel)
-        return params
+        return [server, channel]

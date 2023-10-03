@@ -36,9 +36,7 @@ class FunctestEnrich(Enrich):
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        identities = []
-
-        return identities
+        return []
 
     def has_identities(self):
         """ Return whether the enriched items contains identities """
@@ -50,34 +48,26 @@ class FunctestEnrich(Enrich):
         return None
 
     def __process_duration(self, start_date, stop_date):
-        difference_in_seconds = None
-
         if not start_date or not stop_date:
-            return difference_in_seconds
-
-        difference_in_seconds = abs((stop_date - start_date).seconds)
-        return difference_in_seconds
+            return None
+        return abs((stop_date - start_date).seconds)
 
     def __process_duration_from_api(self, duration):
         processed_duration = None
         try:
             processed_duration = float(duration)
         except Exception:
-            match = re.fullmatch(r'(\d+)m(\d+)s', duration)
-            if match:
+            if match := re.fullmatch(r'(\d+)m(\d+)s', duration):
                 minutes = float(match.group(1))
                 seconds = float(match.group(2))
-                total_secs = (60.0 * minutes) + seconds
-                processed_duration = total_secs
-                return processed_duration
-
-            match = re.fullmatch(r'\d+:\d+:\d+(\.\d+)?', duration)
-            if match:
-                total_secs = sum(
-                    [a * b for a, b in zip([3600.0, 60.0, 1.0], map(float, duration.split(':')))])
-                processed_duration = total_secs
-                return processed_duration
-
+                return (60.0 * minutes) + seconds
+            if match := re.fullmatch(r'\d+:\d+:\d+(\.\d+)?', duration):
+                return sum(
+                    a * b
+                    for a, b in zip(
+                        [3600.0, 60.0, 1.0], map(float, duration.split(':'))
+                    )
+                )
         return processed_duration
 
     @metadata
@@ -93,21 +83,13 @@ class FunctestEnrich(Enrich):
         copy_fields = ["start_date", "stop_date", "case_name", "criteria", "scenario",
                        "version", "pod_name", "installer", "build_tag", "trust_indicator"]
         for f in copy_fields:
-            if f in func_test:
-                eitem[f] = func_test[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = func_test[f] if f in func_test else None
         # Fields which names are translated
         map_fields = {"_id": "api_id",
                       "project_name": "project"
                       }
         for fn in map_fields:
-            if fn in func_test:
-                eitem[map_fields[fn]] = func_test[fn]
-            else:
-                eitem[map_fields[fn]] = None
-
+            eitem[map_fields[fn]] = func_test[fn] if fn in func_test else None
         if 'details' in func_test and func_test['details']:
             if 'tests' in func_test['details']:
                 if isinstance(func_test['details']['tests'], int):
@@ -124,8 +106,9 @@ class FunctestEnrich(Enrich):
                 eitem['duration_from_api'] = self.__process_duration_from_api(func_test['details']['duration'])
 
                 if eitem['duration_from_api'] is None:
-                    logger.debug("[functest] Duration from api {} not processed for enriched item {}".format(
-                                 func_test['details']['duration'], eitem))
+                    logger.debug(
+                        f"[functest] Duration from api {func_test['details']['duration']} not processed for enriched item {eitem}"
+                    )
 
             if 'start_date' in func_test and 'stop_date' in func_test and func_test['stop_date']:
                 start_date = self.__convert_str_to_datetime(func_test['start_date'])
@@ -133,8 +116,9 @@ class FunctestEnrich(Enrich):
                 eitem['duration'] = self.__process_duration(start_date, stop_date)
 
                 if eitem['duration'] is None:
-                    logger.debug("[functest] Duration not calculated for enriched item {} with start_date,"
-                                 " stop_date: {}, {}".format(eitem, start_date, stop_date))
+                    logger.debug(
+                        f"[functest] Duration not calculated for enriched item {eitem} with start_date, stop_date: {start_date}, {stop_date}"
+                    )
 
         if 'duration_from_api' not in eitem:
             eitem['duration_from_api'] = None

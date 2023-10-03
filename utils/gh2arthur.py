@@ -76,17 +76,16 @@ def get_params():
 
 
 def get_payload():
-    # 100 max in repos
-    payload = {'per_page': 100,
-               'fork': False,
-               'sort': 'updated',  # does not work in repos listing
-               'direction': 'desc'}
-    return payload
+    return {
+        'per_page': 100,
+        'fork': False,
+        'sort': 'updated',  # does not work in repos listing
+        'direction': 'desc',
+    }
 
 
 def get_headers(token):
-    headers = {'Authorization': 'token ' + token}
-    return headers
+    return {'Authorization': f'token {token}'}
 
 
 def get_owner_repos_url(owner, token):
@@ -94,8 +93,8 @@ def get_owner_repos_url(owner, token):
         It waits if need to have rate limit.
         Also it fixes a djando issue changing - with _
     """
-    url_org = GITHUB_API_URL + "/orgs/" + owner + "/repos"
-    url_user = GITHUB_API_URL + "/users/" + owner + "/repos"
+    url_org = f"{GITHUB_API_URL}/orgs/{owner}/repos"
+    url_user = f"{GITHUB_API_URL}/users/{owner}/repos"
 
     url_owner = url_org  # Use org by default
 
@@ -124,7 +123,7 @@ def get_repositores(owner_url, token, nrepos):
     url = owner_url
 
     while True:
-        logging.debug("Getting repos from: %s" % (url))
+        logging.debug(f"Getting repos from: {url}")
         try:
             r = requests.get(url,
                              params=get_payload(),
@@ -133,7 +132,7 @@ def get_repositores(owner_url, token, nrepos):
             r.raise_for_status()
             all_repos += r.json()
 
-            logging.debug("Rate limit: %s" % (r.headers['X-RateLimit-Remaining']))
+            logging.debug(f"Rate limit: {r.headers['X-RateLimit-Remaining']}")
 
             if 'next' not in r.links:
                 break
@@ -148,7 +147,7 @@ def get_repositores(owner_url, token, nrepos):
     # Sort by updated_at and limit to nrepos
     nrepos_sorted = sorted(nrepos_recent, key=lambda repo: parser.parse(repo['updated_at']), reverse=True)
     if nrepos > 0:
-        nrepos_sorted = nrepos_sorted[0:nrepos]
+        nrepos_sorted = nrepos_sorted[:nrepos]
     # First the small repositories to feedback the user quickly
     nrepos_sorted = sorted(nrepos_sorted, key=lambda repo: repo['size'])
     for repo in nrepos_sorted:
@@ -200,7 +199,7 @@ def insert_projects_mapping(db_projects_map, project, repositories):
         # Try to create the database and the tables
         db = MySQLdb.connect(user="root", passwd="", host="mariadb")
         cursor = db.cursor()
-        cursor.execute("CREATE DATABASE %s CHARACTER SET utf8" % (db_projects_map))
+        cursor.execute(f"CREATE DATABASE {db_projects_map} CHARACTER SET utf8")
         db = MySQLdb.connect(user="root", passwd="", host="mariadb",
                              db=db_projects_map)
         cursor = db.cursor()
@@ -214,10 +213,10 @@ def insert_projects_mapping(db_projects_map, project, repositories):
     cursor.execute(q, (project, project))
     project_id = db.insert_id()
 
+    q = "INSERT INTO project_repositories (project_id, data_source, repository_name) VALUES (%s, %s, %s)"
     # Insert its repositories in project_repositories
     for repo in repositories:
         repo_url = repo['clone_url']
-        q = "INSERT INTO project_repositories (project_id, data_source, repository_name) VALUES (%s, %s, %s)"
         cursor.execute(q, (project_id, PROJECTS_DS, repo_url))
 
     db.close()
@@ -237,7 +236,7 @@ if __name__ == '__main__':
     total_repos = 0
 
     # enrich ocean
-    index_enrich = OCEAN_INDEX + "_" + PERCEVAL_BACKEND + "_enrich"
+    index_enrich = f"{OCEAN_INDEX}_{PERCEVAL_BACKEND}_enrich"
     es_enrich = None
     try:
         es_enrich = ElasticSearch(args.elastic_url, index_enrich)
@@ -250,7 +249,7 @@ if __name__ == '__main__':
         try:
             repos = get_repositores(owner_url, args.token, args.nrepos)
         except requests.exceptions.HTTPError:
-            logging.error("Can't get repos for %s" % (owner_url))
+            logging.error(f"Can't get repos for {owner_url}")
             continue
         if args.db_projects_map:
             insert_projects_mapping(args.db_projects_map, org, repos)

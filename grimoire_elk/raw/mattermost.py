@@ -114,8 +114,6 @@ class MattermostOcean(ElasticOcean):
         An example Standard URL looks like
         `https://my.mattermost.host/my_team_name/channels/my_channel_name`
         """
-        params = []
-
         # Match the provided URL against the validator/parser regex
         data = cls.URL_REGEX.match(url.lower())
 
@@ -129,8 +127,7 @@ class MattermostOcean(ElasticOcean):
 
         # The `base` group should be matched for both URLs, and is the 1st parameter
         url = data.group('base')
-        params.append(url)
-
+        params = [url]
         # Extract the other groups
         team = data.group('team')
         channel = data.group('channel')
@@ -138,8 +135,7 @@ class MattermostOcean(ElasticOcean):
 
         # Check if this is a Standard URL by the presence of the `team` group
         if team is not None:
-            params.append(channel)
-            params.append(team)
+            params.extend((channel, team))
         else:
             params.append(channel_id)
 

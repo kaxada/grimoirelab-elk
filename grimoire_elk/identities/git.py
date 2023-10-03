@@ -26,9 +26,8 @@ class GitIdentities(Identities):
 
     @staticmethod
     def _get_identity(git_user):
-        identity = {}
         fields = git_user.split("<")
-        identity['name'] = fields[0].strip()
+        identity = {'name': fields[0].strip()}
         try:
             email = fields[1][:-1]
             identity['domain'] = email.split("@")[1]
@@ -45,7 +44,7 @@ class GitIdentities(Identities):
 
         if item['Author']:
             author = cls._get_identity(item['Author'])
-            item['Author'] = "{} <xxxxxx@{}>".format(cls._hash(author['name']), author['domain'])
+            item['Author'] = f"{cls._hash(author['name'])} <xxxxxx@{author['domain']}>"
         if item['Commit']:
             commit = cls._get_identity(item['Commit'])
-            item['Commit'] = "{} <xxxxxx@{}>".format(cls._hash(commit['name']), commit['domain'])
+            item['Commit'] = f"{cls._hash(commit['name'])} <xxxxxx@{commit['domain']}>"

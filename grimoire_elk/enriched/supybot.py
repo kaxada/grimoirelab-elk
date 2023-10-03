@@ -62,15 +62,10 @@ class SupybotEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        user = self.get_sh_identity(item['data']['nick'])
-        yield user
+        yield self.get_sh_identity(item['data']['nick'])
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-        identity['username'] = None
-        identity['email'] = None
-        identity['name'] = None
-
+        identity = {'username': None, 'email': None, 'name': None}
         if not item:
             return identity
 
@@ -94,10 +89,7 @@ class SupybotEnrich(Enrich):
         # data fields to copy
         copy_fields = ["nick", "body", "type"]
         for f in copy_fields:
-            if f in message:
-                eitem[f] = message[f]
-            else:
-                eitem[f] = None
+            eitem[f] = message[f] if f in message else None
         # Fields which names are translated
         map_fields = {"body": "body_analyzed", "timestamp": "sent_date"}
         for fn in map_fields:

@@ -64,10 +64,6 @@ class MediaWikiOcean(ElasticOcean):
     @classmethod
     def get_perceval_params_from_url(cls, urls):
         """ Get the perceval params given the URLs for the data source """
-        params = []
-
         data = urls.split()
         url = data[0]
-        params.append(url)
-
-        return params
+        return [url]

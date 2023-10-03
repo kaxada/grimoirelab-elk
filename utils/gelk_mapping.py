@@ -39,9 +39,7 @@ def get_params():
                         help="Major Elasticsearch version for the mapping (2, 5, 6")
     parser.add_argument('--index-raw', required=True, help="Name of the raw index to be imported")
     parser.add_argument('--index-enriched', required=True, help="Name of the enriched index to be imported")
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 
 def find_general_mappings(es_major_version):
@@ -52,7 +50,9 @@ def find_general_mappings(es_major_version):
     """
 
     if es_major_version not in ES_SUPPORTED:
-        print("Elasticsearch version not supported %s (supported %s)" % (es_major_version, ES_SUPPORTED))
+        print(
+            f"Elasticsearch version not supported {es_major_version} (supported {ES_SUPPORTED})"
+        )
         sys.exit(1)
 
     # By default all strings are not analyzed in ES < 6
@@ -112,15 +112,11 @@ def find_ds_mapping(data_source, es_major_version):
         print("Data source not found", data_source)
         sys.exit(1)
 
-    # Mapping for raw index
-    backend = raw_klass(None)
-    if backend:
+    if backend := raw_klass(None):
         mapping = json.loads(backend.mapping.get_elastic_mappings(es_major_version)['items'])
         mappings['raw'] = [mapping, find_general_mappings(es_major_version)]
 
-    # Mapping for enriched index
-    backend = enrich_klass(None)
-    if backend:
+    if backend := enrich_klass(None):
         mapping = json.loads(backend.mapping.get_elastic_mappings(es_major_version)['items'])
         mappings['enriched'] = [mapping, find_general_mappings(es_major_version)]
 
@@ -140,11 +136,11 @@ if __name__ == '__main__':
     raw_dict = mappings['raw'][0]
     raw_dict.update(mappings['raw'][1])
     raw_full = {ARGS.index_raw: {"mappings": {"items": raw_dict}}}
-    with open(ARGS.data_source + "-mapping-raw.json", "w") as fmap:
+    with open(f"{ARGS.data_source}-mapping-raw.json", "w") as fmap:
         json.dump(raw_full, fmap, indent=True)
 
     enriched_dict = mappings['enriched'][0]
     enriched_dict.update(mappings['enriched'][1])
     enriched_full = {ARGS.index_enriched: {"mappings": {"items": enriched_dict}}}
-    with open(ARGS.data_source + "-mapping-enriched.json", "w") as fmap:
+    with open(f"{ARGS.data_source}-mapping-enriched.json", "w") as fmap:
         json.dump(enriched_full, fmap, indent=True)

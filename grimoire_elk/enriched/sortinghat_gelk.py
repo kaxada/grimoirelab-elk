@@ -41,9 +41,8 @@ class SortingHat(object):
 
         with db.connect() as session:
             query = session.query(Identity).\
-                filter(Identity.id == sh_id)
-            identities = query.all()
-            if identities:
+                    filter(Identity.id == sh_id)
+            if identities := query.all():
                 uuid = identities[0].uuid
         return uuid
 
@@ -56,8 +55,9 @@ class SortingHat(object):
             uuid = api.add_identity(db, backend, identity['email'],
                                     identity['name'], identity['username'])
 
-            logger.debug("[sortinghat] New identity {} {},{},{} ".format(
-                         uuid, identity['username'], identity['name'], identity['email']))
+            logger.debug(
+                f"[sortinghat] New identity {uuid} {identity['username']},{identity['name']},{identity['email']} "
+            )
 
             profile = {"name": identity['name'] if identity['name'] else identity['username'],
                        "email": identity['email']}
@@ -69,11 +69,13 @@ class SortingHat(object):
         except InvalidValueError:
             logger.warning("[sortinghat] Trying to add a None identity. Ignoring it.")
         except UnicodeEncodeError:
-            logger.warning("[sortinghat] UnicodeEncodeError. Ignoring it. {} {} {}".format(
-                           identity['email'], identity['name'], identity['username']))
+            logger.warning(
+                f"[sortinghat] UnicodeEncodeError. Ignoring it. {identity['email']} {identity['name']} {identity['username']}"
+            )
         except Exception:
-            logger.warning("[sortinghat] Unknown exception adding identity. Ignoring it. {} {} {}".format(
-                           identity['email'], identity['name'], identity['username']))
+            logger.warning(
+                f"[sortinghat] Unknown exception adding identity. Ignoring it. {identity['email']} {identity['name']} {identity['username']}"
+            )
 
         if 'company' in identity and identity['company'] is not None:
             try:
@@ -99,10 +101,10 @@ class SortingHat(object):
                 cls.add_identity(db, identity, backend)
                 total += 1
             except Exception as e:
-                logger.error("[sortinghat] Unexcepted error when adding identities: {}".format(e))
+                logger.error(f"[sortinghat] Unexcepted error when adding identities: {e}")
                 continue
 
-        logger.debug("[sortinghat] Total identities added: {}".format(total))
+        logger.debug(f"[sortinghat] Total identities added: {total}")
 
     @classmethod
     def remove_identity(cls, sh_db, ident_id):
@@ -114,10 +116,10 @@ class SortingHat(object):
         success = False
         try:
             api.delete_identity(sh_db, ident_id)
-            logger.debug("[sortinghat] Identity {} deleted".format(ident_id))
+            logger.debug(f"[sortinghat] Identity {ident_id} deleted")
             success = True
         except Exception as e:
-            logger.debug("[sortinghat] Identity not deleted due to {}".format(e))
+            logger.debug(f"[sortinghat] Identity not deleted due to {e}")
 
         return success
 
@@ -131,10 +133,10 @@ class SortingHat(object):
         success = False
         try:
             api.delete_unique_identity(sh_db, uuid)
-            logger.debug("[sortinghat] Unique identity {} deleted".format(uuid))
+            logger.debug(f"[sortinghat] Unique identity {uuid} deleted")
             success = True
         except Exception as e:
-            logger.debug("[sortinghat] Unique identity not deleted due to {}".format(e))
+            logger.debug(f"[sortinghat] Unique identity not deleted due to {e}")
 
         return success
 
@@ -145,7 +147,6 @@ class SortingHat(object):
         :param sh_db: SortingHat database
         """
         try:
-            for unique_identity in api.unique_identities(sh_db):
-                yield unique_identity
+            yield from api.unique_identities(sh_db)
         except Exception as e:
-            logger.debug("[sortinghat] Unique identities not returned due to {}".format(e))
+            logger.debug(f"[sortinghat] Unique identities not returned due to {e}")

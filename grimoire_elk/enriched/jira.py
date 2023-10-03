@@ -121,31 +121,27 @@ class JiraEnrich(Enrich):
 
             eitem_sh.update(self.get_item_sh_fields(identity, created, rol=rol))
 
-            if not eitem_sh[rol + '_org_name']:
-                eitem_sh[rol + '_org_name'] = SH_UNKNOWN_VALUE
+            if not eitem_sh[f'{rol}_org_name']:
+                eitem_sh[f'{rol}_org_name'] = SH_UNKNOWN_VALUE
 
-            if not eitem_sh[rol + '_name']:
-                eitem_sh[rol + '_name'] = SH_UNKNOWN_VALUE
+            if not eitem_sh[f'{rol}_name']:
+                eitem_sh[f'{rol}_name'] = SH_UNKNOWN_VALUE
 
-            if not eitem_sh[rol + '_user_name']:
-                eitem_sh[rol + '_user_name'] = SH_UNKNOWN_VALUE
+            if not eitem_sh[f'{rol}_user_name']:
+                eitem_sh[f'{rol}_user_name'] = SH_UNKNOWN_VALUE
 
         return eitem_sh
 
     def get_project_repository(self, eitem):
         repo = eitem['origin']
-        if eitem['origin'][-1] != "/":
+        if repo[-1] != "/":
             repo += "/"
         repo += "projects/" + eitem['project_key']
         return repo
 
     def get_users_data(self, item):
         """ If user fields are inside the global item dict """
-        if 'data' in item:
-            users_data = item['data']['fields']
-        else:
-            users_data = item
-        return users_data
+        return item['data']['fields'] if 'data' in item else item
 
     def get_identities(self, item):
         """Return the identities from an item"""
@@ -159,17 +155,13 @@ class JiraEnrich(Enrich):
             if field not in item["fields"]:
                 continue
             if item["fields"][field]:
-                user = self.get_sh_identity(item["fields"][field])
-                yield user
-
+                yield self.get_sh_identity(item["fields"][field])
         comments = item.get('comments_data', [])
         for comment in comments:
             if 'author' in comment and comment['author']:
-                user = self.get_sh_identity(comment['author'])
-                yield user
+                yield self.get_sh_identity(comment['author'])
             if 'updateAuthor' in comment and comment['updateAuthor']:
-                user = self.get_sh_identity(comment['updateAuthor'])
-                yield user
+                yield self.get_sh_identity(comment['updateAuthor'])
 
     @staticmethod
     def fix_value_null(value):
@@ -182,10 +174,7 @@ class JiraEnrich(Enrich):
         :param value: string found in a value fields
         :return: same as value, or None
         """
-        if value == '<null>':
-            return None
-        else:
-            return value
+        return None if value == '<null>' else value
 
     @classmethod
     def enrich_fields(cls, fields, eitem):
@@ -208,8 +197,7 @@ class JiraEnrich(Enrich):
                         if fields[field]['name'] == "Story Points":
                             eitem['story_points'] = fields[field]['value']
                         elif fields[field]['name'] == "Sprint":
-                            value = fields[field]['value']
-                            if value:
+                            if value := fields[field]['value']:
                                 sprint = value[0].partition(",name=")[2].split(',')[0]
                                 sprint_start = value[0].partition(",startDate=")[2].split(',')[0]
                                 sprint_end = value[0].partition(",endDate=")[2].split(',')[0]
@@ -231,11 +219,7 @@ class JiraEnrich(Enrich):
         # Fields that are the same in item and eitem
         copy_fields = ["assignee", "reporter"]
         for f in copy_fields:
-            if f in issue:
-                eitem[f] = issue[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = issue[f] if f in issue else None
         eitem['changes'] = issue['changelog']['total']
 
         if "creator" in issue["fields"] and issue["fields"]["creator"]:
@@ -256,9 +240,9 @@ class JiraEnrich(Enrich):
                 eitem['reporter_tz'] = issue["fields"]["reporter"]["timeZone"]
 
         eitem['author_type'] = author_type
-        eitem['author_name'] = eitem.get(author_type + '_name', None)
-        eitem['author_login'] = eitem.get(author_type + '_login', None)
-        eitem['author_tz'] = eitem.get(author_type + '_tz', None)
+        eitem['author_name'] = eitem.get(f'{author_type}_name', None)
+        eitem['author_login'] = eitem.get(f'{author_type}_login', None)
+        eitem['author_tz'] = eitem.get(f'{author_type}_tz', None)
 
         eitem['creation_date'] = issue["fields"]['created']
 
@@ -273,7 +257,7 @@ class JiraEnrich(Enrich):
             eitem['labels'] = issue['fields']['labels']
 
         if 'priority' in issue['fields'] and issue['fields']['priority'] \
-                and 'name' in issue['fields']['priority']:
+                    and 'name' in issue['fields']['priority']:
             eitem['priority'] = issue['fields']['priority']['name']
 
         # data.fields.progress.percent not exists in Puppet JIRA
@@ -317,7 +301,7 @@ class JiraEnrich(Enrich):
         eitem['url'] = None
 
         # Add id info to allow to coexistence of comments and issues in the same index
-        eitem['id'] = '{}_issue_{}_user_{}'.format(eitem['uuid'], issue['id'], author_type)
+        eitem['id'] = f"{eitem['uuid']}_issue_{issue['id']}_user_{author_type}"
 
         if 'comments_data' in issue:
             eitem['number_of_comments'] = len(issue['comments_data'])
@@ -328,9 +312,9 @@ class JiraEnrich(Enrich):
 
         eitem['url'] = item['origin'] + "/browse/" + issue['key']
         eitem['time_to_close_days'] = \
-            get_time_diff_days(issue['fields']['created'], issue['fields']['updated'])
+                get_time_diff_days(issue['fields']['created'], issue['fields']['updated'])
         eitem['time_to_last_update_days'] = \
-            get_time_diff_days(issue['fields']['created'], datetime_utcnow().replace(tzinfo=None))
+                get_time_diff_days(issue['fields']['created'], datetime_utcnow().replace(tzinfo=None))
 
         if 'fixVersions' in issue['fields']:
             eitem['releases'] = []
@@ -343,17 +327,19 @@ class JiraEnrich(Enrich):
             eitem.update(self.get_item_sh(item, ["assignee", "reporter", "creator"], issue['fields']['created']))
 
             # Set the author info to the one identified by author_type
-            eitem['author_id'] = eitem[author_type + '_id']
-            eitem['author_uuid'] = eitem[author_type + '_uuid']
-            eitem['author_name'] = eitem[author_type + '_name']
-            eitem['author_user_name'] = eitem[author_type + '_user_name']
-            eitem['author_domain'] = eitem[author_type + '_domain']
-            eitem['author_gender'] = eitem[author_type + '_gender']
-            eitem['author_gender_acc'] = eitem[author_type + '_gender_acc']
-            eitem['author_org_name'] = eitem[author_type + '_org_name']
-            eitem['author_bot'] = eitem[author_type + '_bot']
+            eitem['author_id'] = eitem[f'{author_type}_id']
+            eitem['author_uuid'] = eitem[f'{author_type}_uuid']
+            eitem['author_name'] = eitem[f'{author_type}_name']
+            eitem['author_user_name'] = eitem[f'{author_type}_user_name']
+            eitem['author_domain'] = eitem[f'{author_type}_domain']
+            eitem['author_gender'] = eitem[f'{author_type}_gender']
+            eitem['author_gender_acc'] = eitem[f'{author_type}_gender_acc']
+            eitem['author_org_name'] = eitem[f'{author_type}_org_name']
+            eitem['author_bot'] = eitem[f'{author_type}_bot']
 
-            eitem['author_multi_org_names'] = eitem.get(author_type + '_multi_org_names', [])
+            eitem['author_multi_org_names'] = eitem.get(
+                f'{author_type}_multi_org_names', []
+            )
 
         if self.prjs_map:
             eitem.update(self.get_item_project(eitem))
@@ -403,7 +389,7 @@ class JiraEnrich(Enrich):
             ecomment['comment_id'] = comment['id']
 
             # Add id info to allow to coexistence of comments and issues in the same index
-            ecomment['id'] = '{}_comment_{}'.format(eitem['id'], comment['id'])
+            ecomment['id'] = f"{eitem['id']}_comment_{comment['id']}"
             ecomment['type'] = COMMENT_TYPE
 
             if self.sortinghat:
@@ -432,7 +418,9 @@ class JiraEnrich(Enrich):
             # This condition should never happen, since the enriched
             # data heavily relies on the `fields` attribute
             if "fields" not in item["data"]:
-                logger.warning("[jira] Skipping item with uuid {}, no fields attribute".format(item['uuid']))
+                logger.warning(
+                    f"[jira] Skipping item with uuid {item['uuid']}, no fields attribute"
+                )
                 continue
 
             eitem_creator = self.get_rich_item(item, author_type='creator')
@@ -443,8 +431,7 @@ class JiraEnrich(Enrich):
             items_to_enrich.append(eitem_assignee)
             items_to_enrich.append(eitem_reporter)
 
-            comments = item['data'].get('comments_data', [])
-            if comments:
+            if comments := item['data'].get('comments_data', []):
                 rich_item_comments = self.get_rich_item_comments(comments, eitem_creator)
                 items_to_enrich.extend(rich_item_comments)
 
@@ -461,8 +448,8 @@ class JiraEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[jira] {}/{} missing items for Jira".format(missing, num_items))
+            logger.error(f"[jira] {missing}/{num_items} missing items for Jira")
         else:
-            logger.info("[jira] {} items inserted for Jira".format(num_items))
+            logger.info(f"[jira] {num_items} items inserted for Jira")
 
         return num_items

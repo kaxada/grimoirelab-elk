@@ -77,15 +77,15 @@ class ElasticItems:
         """Returns the filter to be used in queries in a repository items"""
 
         perceval_backend_name = self.get_connector_name()
-        filter_ = get_repository_filter(self.perceval_backend, perceval_backend_name, term)
-        return filter_
+        return get_repository_filter(
+            self.perceval_backend, perceval_backend_name, term
+        )
 
     def get_confluence_spaces(self, repo_spaces):
         """Returns the spaces to be used in queries in a confluence items"""
 
         perceval_backend_name = self.get_connector_name()
-        filter_ = get_confluence_spaces_filter(repo_spaces, perceval_backend_name)
-        return filter_
+        return get_confluence_spaces_filter(repo_spaces, perceval_backend_name)
 
     def get_field_date(self):
         """Field with the update in the JSON items. Now the same in all."""
@@ -133,9 +133,7 @@ class ElasticItems:
         if tag == "spaces":
             tag_pattern = PROJECTS_JSON_SPACES_PATTERN
         pattern = re.compile(tag_pattern)
-        matchObj = pattern.match(repo)
-
-        if matchObj:
+        if matchObj := pattern.match(repo):
             labels_info = matchObj.group(1)
             labels = matchObj.group(2)
             tags_lst = [label.strip() for label in labels.split(',')]
@@ -154,12 +152,7 @@ class ElasticItems:
         fltr_name = fltr_params[0].strip().replace('"', '')
         fltr_value = fltr_params[1].strip().replace('"', '')
 
-        fltr_dict = {
-            'name': fltr_name,
-            'value': fltr_value
-        }
-
-        return fltr_dict
+        return {'name': fltr_name, 'value': fltr_value}
 
     def set_filter_raw(self, filter_raw):
         """Filter to be used when getting items from Ocean index
@@ -200,8 +193,8 @@ class ElasticItems:
         if not scroll_id:
             return
 
-        logger.debug("Releasing scroll_id={}".format(scroll_id))
-        url = self.elastic.url + "/_search/scroll"
+        logger.debug(f"Releasing scroll_id={scroll_id}")
+        url = f"{self.elastic.url}/_search/scroll"
         headers = {"Content-Type": "application/json"}
         scroll_data = {"scroll_id": scroll_id}
         query_data = json.dumps(scroll_data)
@@ -209,8 +202,8 @@ class ElasticItems:
             res = self.requests.delete(url, data=query_data, headers=headers)
             res.raise_for_status()
         except Exception:
-            logger.debug("Error releasing scroll: {}/{}".format(anonymize_url(url), scroll_id))
-            logger.debug("Error releasing scroll: {}".format(res.json()))
+            logger.debug(f"Error releasing scroll: {anonymize_url(url)}/{scroll_id}")
+            logger.debug(f"Error releasing scroll: {res.json()}")
 
     # Items generator
     def fetch(self, _filter=None, ignore_incremental=False):
@@ -228,7 +221,7 @@ class ElasticItems:
         if page and 'too_many_scrolls' in page:
             sec = self.scroll_wait
             while sec > 0:
-                logger.debug("Too many scrolls open, waiting up to {} seconds".format(sec))
+                logger.debug(f"Too many scrolls open, waiting up to {sec} seconds")
                 time.sleep(1)
                 sec -= 1
                 page = self.get_elastic_items(scroll_id, _filter=_filter, ignore_incremental=ignore_incremental)
@@ -236,7 +229,7 @@ class ElasticItems:
                     logger.debug("Waiting for scroll terminated")
                     break
                 if 'too_many_scrolls' not in page:
-                    logger.debug("Scroll acquired after {} seconds".format(self.scroll_wait - sec))
+                    logger.debug(f"Scroll acquired after {self.scroll_wait - sec} seconds")
                     break
 
         if not page:
@@ -247,19 +240,19 @@ class ElasticItems:
         scroll_size = total['value'] if isinstance(total, dict) else total
 
         if scroll_size == 0:
-            logger.debug("No results found from {} and filter {}".format(
-                         anonymize_url(self.elastic.index_url), _filter))
+            logger.debug(
+                f"No results found from {anonymize_url(self.elastic.index_url)} and filter {_filter}"
+            )
             self.free_scroll(scroll_id)
             return
 
         while scroll_size > 0:
 
-            logger.debug("Fetching from {}: {} received".format(
-                         anonymize_url(self.elastic.index_url), len(page['hits']['hits'])))
+            logger.debug(
+                f"Fetching from {anonymize_url(self.elastic.index_url)}: {len(page['hits']['hits'])} received"
+            )
             for item in page['hits']['hits']:
-                eitem = item['_source']
-                yield eitem
-
+                yield item['_source']
             page = self.get_elastic_items(scroll_id, _filter=_filter, ignore_incremental=ignore_incremental)
 
             if not page:
@@ -268,7 +261,9 @@ class ElasticItems:
             scroll_size = len(page['hits']['hits'])
 
         self.free_scroll(scroll_id)
-        logger.debug("Fetching from {}: done receiving".format(anonymize_url(self.elastic.index_url)))
+        logger.debug(
+            f"Fetching from {anonymize_url(self.elastic.index_url)}: done receiving"
+        )
 
     def get_elastic_items(self, elastic_scroll_id=None, _filter=None, ignore_incremental=False):
         """Get the items from the index related to the backend applying and
@@ -300,10 +295,7 @@ class ElasticItems:
             }
             query_data = json.dumps(scroll_data)
         else:
-            # If using a perceval backends always filter by repository
-            # to support multi repository indexes
-            filters_dict = self.get_repository_filter_raw(term=True)
-            if filters_dict:
+            if filters_dict := self.get_repository_filter_raw(term=True):
                 filters = json.dumps(filters_dict)
             else:
                 filters = ''
@@ -326,8 +318,7 @@ class ElasticItems:
                 filter_str = filter_str.replace("'", "\"")
                 filters += filter_str
 
-            filters_spaces_dict = self.get_confluence_spaces(self.repo_spaces)
-            if filters_spaces_dict:
+            if filters_spaces_dict := self.get_confluence_spaces(self.repo_spaces):
                 filters_spaces = json.dumps(filters_spaces_dict)
                 filters += '''
                     , {"bool":%s}
@@ -357,9 +348,7 @@ class ElasticItems:
             # Order the raw items from the old ones to the new so if the
             # enrich process fails, it could be resume incrementally
             order_query = ''
-            order_field = None
-            if self.perceval_backend:
-                order_field = self.get_incremental_date()
+            order_field = self.get_incremental_date() if self.perceval_backend else None
             if order_field is not None:
                 order_query = ', "sort": { "%s": { "order": "asc" }} ' % order_field
 
@@ -389,7 +378,7 @@ class ElasticItems:
             rjson = res.json()
         except Exception:
             # The index could not exists yet or it could be empty
-            logger.debug("No results found from {}".format(anonymize_url(url)))
+            logger.debug(f"No results found from {anonymize_url(url)}")
 
         return rjson
 

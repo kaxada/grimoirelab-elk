@@ -72,21 +72,18 @@ class ConfluenceEnrich(Enrich):
 
     def get_users_data(self, item):
         """ If user fields are inside the global item dict """
-        if 'data' in item:
-            users_data = item['data']['version']
-        else:
-            # the item is directly the data (kitsune answer)
-            users_data = item
-        return users_data
+        return item['data']['version'] if 'data' in item else item
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-
         user = item  # by default a specific user dict is expected
         if isinstance(item, dict) and 'data' in item:
             user = item['data']['version'][identity_field]
 
-        identity['username'] = user['username'] if 'username' in user else user.get('publicName', None)
+        identity = {
+            'username': user['username']
+            if 'username' in user
+            else user.get('publicName', None)
+        }
         identity['email'] = user.get('email', None)
         identity['name'] = user.get('displayName', None)
 
@@ -103,10 +100,7 @@ class ConfluenceEnrich(Enrich):
         # data fields to copy
         copy_fields = ["type", "id", "status", "title", "content_url"]
         for f in copy_fields:
-            if f in page:
-                eitem[f] = page[f]
-            else:
-                eitem[f] = None
+            eitem[f] = page[f] if f in page else None
         # Fields which names are translated
         map_fields = {"title": "title_analyzed"}
         for fn in map_fields:

@@ -85,9 +85,9 @@ class CeresBase:
 
         from_date = self._out.latest_date()
         if from_date:
-            logger.debug("{} reading items since {}".format(logs_prefix, from_date))
+            logger.debug(f"{logs_prefix} reading items since {from_date}")
         else:
-            logger.info("{} reading items since the beginning of times".format(logs_prefix))
+            logger.info(f"{logs_prefix} reading items since the beginning of times")
 
         cont = 0
         total_processed = 0
@@ -103,17 +103,17 @@ class CeresBase:
                 self._out.write(process_results.out_items)
                 total_written += len(process_results.out_items)
             else:
-                logger.info("{} no new items to be written this time.".format(logs_prefix))
+                logger.info(f"{logs_prefix} no new items to be written this time.")
 
-            logger.debug("{} items read/to be written/total read/total processed/total written: "
-                         "{}/{}/{}/{}/{}".format(logs_prefix, len(item_block),
-                                                 len(process_results.out_items),
-                                                 cont, total_processed, total_processed))
+            logger.debug(
+                f"{logs_prefix} items read/to be written/total read/total processed/total written: {len(item_block)}/{len(process_results.out_items)}/{cont}/{total_processed}/{total_processed}"
+            )
 
-        logger.info("{} SUMMARY: Items total read/total processed/total written: "
-                    "{}/{}/{}".format(logs_prefix, cont, total_processed, total_written))
+        logger.info(
+            f"{logs_prefix} SUMMARY: Items total read/total processed/total written: {cont}/{total_processed}/{total_written}"
+        )
 
-        logger.debug("{} this is the end.".format(logs_prefix))
+        logger.debug(f"{logs_prefix} this is the end.")
 
         return total_written
 
@@ -152,7 +152,7 @@ class ESConnector(Connector):
         self._sort_on_field = sort_on_field
         self._repo = repo
         self._read_only = read_only
-        self.__log_prefix = "[" + es_index + "] study "
+        self.__log_prefix = f"[{es_index}] study "
 
         self._es_major = self._es_conn.info()['version']['number'].split('.')[0]
         self._es_distribution = self._es_conn.info()['version'].get('distribution', 'elasticsearch')
@@ -169,12 +169,13 @@ class ESConnector(Connector):
         :raises NotFoundError: index not found in ElasticSearch
         """
         search_query = self._build_search_query(from_date)
-        for hit in helpers.scan(self._es_conn,
-                                search_query,
-                                scroll='300m',
-                                index=self._es_index,
-                                preserve_order=True):
-            yield hit
+        yield from helpers.scan(
+            self._es_conn,
+            search_query,
+            scroll='300m',
+            index=self._es_index,
+            preserve_order=True,
+        )
 
     def read_block(self, size, from_date=None):
         """Read items and return them in blocks.
@@ -224,7 +225,7 @@ class ESConnector(Connector):
             docs.append(doc)
         # TODO exception and error handling
         helpers.bulk(self._es_conn, docs)
-        logger.info("{} Written: {}".format(self.__log_prefix, len(docs)))
+        logger.info(f"{self.__log_prefix} Written: {len(docs)}")
 
     def create_index(self, mappings_file, delete=True):
         """Create a new index.
@@ -237,7 +238,7 @@ class ESConnector(Connector):
             raise IOError("Cannot write, Connector created as Read Only")
 
         if delete:
-            logger.info("{} Deleting index {}".format(self.__log_prefix, self._es_index))
+            logger.info(f"{self.__log_prefix} Deleting index {self._es_index}")
             self._es_conn.indices.delete(self._es_index, ignore=[400, 404])
 
         # Read Mapping
@@ -258,7 +259,7 @@ class ESConnector(Connector):
 
         search = Search(using=self._es_conn, index=self._es_index)
         # from:to parameters (=> from: 0, size: 0)
-        search = search[0:0]
+        search = search[:0]
 
         if self._repo:
             search = search.filter('term', origin=self._repo)
@@ -270,8 +271,9 @@ class ESConnector(Connector):
 
             aggs = response.to_dict()['aggregations']
             if aggs['max_date']['value'] is None:
-                logger.debug("{} No data for {} field found in {} index".format(
-                             self.__log_prefix, self._sort_on_field, self._es_index))
+                logger.debug(
+                    f"{self.__log_prefix} No data for {self._sort_on_field} field found in {self._es_index} index"
+                )
 
             else:
                 # Incremental case: retrieve items from last item in ES write index
@@ -319,17 +321,8 @@ class ESConnector(Connector):
         if from_date:
             filters.append({"range": {self._sort_on_field: {"gte": from_date}}})
 
-        if filters:
-            query = {"bool": {"filter": filters}}
-        else:
-            query = {"match_all": {}}
-
-        search_query = {
-            "query": query,
-            "sort": sort
-        }
-
-        return search_query
+        query = {"bool": {"filter": filters}} if filters else {"match_all": {}}
+        return {"query": query, "sort": sort}
 
 
 class SimpleCopy(CeresBase):

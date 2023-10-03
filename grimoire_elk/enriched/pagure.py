@@ -97,8 +97,7 @@ class PagureEnrich(Enrich):
         item = item['data']
         for identity in self.issue_roles:
             if item[identity]:
-                user = self.get_sh_identity(item[identity])
-                if user:
+                if user := self.get_sh_identity(item[identity]):
                     yield user
 
         # Comments
@@ -106,8 +105,7 @@ class PagureEnrich(Enrich):
             for comment in item['comments']:
                 if 'user' in comment:
                     user = comment.get('user', None)
-                    identity = self.get_sh_identity(user)
-                    yield identity
+                    yield self.get_sh_identity(user)
 
     def get_sh_identity(self, item, identity_field=None):
         identity = {}
@@ -132,27 +130,26 @@ class PagureEnrich(Enrich):
         eitem['metadata__enriched_on'] = datetime_utcnow().isoformat()
 
     def get_project_repository(self, eitem):
-        repo = eitem['origin']
-        return repo
+        return eitem['origin']
 
     def get_time_to_first_attention(self, item):
         """Get the first date at which a comment was made to the issue by someone
         other than the user who created the issue
         """
-        comment_dates = [unixtime_to_datetime(float(comment['date_created'])).isoformat() for comment
-                         in item['comments'] if item['user']['name'] != comment['user']['name']]
-        if comment_dates:
+        if comment_dates := [
+            unixtime_to_datetime(float(comment['date_created'])).isoformat()
+            for comment in item['comments']
+            if item['user']['name'] != comment['user']['name']
+        ]:
             return min(comment_dates)
         return None
 
     def __get_reactions(self, item):
-        reactions = {}
-
         item_reactions = item.get('reactions', {})
-        for reaction in item_reactions:
-            reactions['reaction_{}'.format(reaction)] = item_reactions[reaction]
-
-        return reactions
+        return {
+            f'reaction_{reaction}': item_reactions[reaction]
+            for reaction in item_reactions
+        }
 
     def get_rich_issue_comments(self, comments, eitem):
         ecomments = []
@@ -186,18 +183,18 @@ class PagureEnrich(Enrich):
                 ecomment['comment_updated_by_username'] = editor.get('name', None)
 
             ecomment['comment_created_at'] = unixtime_to_datetime(float(comment['date_created'])).isoformat()
-            ecomment['comment_changed_at'] = \
-                ecomment['comment_updated_at'] if 'comment_updated_at' in ecomment else ecomment['comment_created_at']
+            ecomment['comment_changed_at'] = ecomment.get(
+                'comment_updated_at', ecomment['comment_created_at']
+            )
             ecomment['notification'] = comment['notification']
             ecomment['parent'] = comment['parent']
 
-            author = comment.get('user', None)
-            if author:
+            if author := comment.get('user', None):
                 ecomment['comment_author_username'] = author.get('name', None)
                 ecomment['comment_author_name'] = author.get('fullname', None)
 
             # Add id info to allow to coexistence of items of different types in the same index
-            ecomment['id'] = '{}_issue_comment_{}'.format(eitem['id'], comment['id'])
+            ecomment['id'] = f"{eitem['id']}_issue_comment_{comment['id']}"
             ecomment.update(self.get_grimoire_fields(ecomment['comment_changed_at'], ISSUE_COMMENT_TYPE))
 
             if self.sortinghat:
@@ -221,8 +218,7 @@ class PagureEnrich(Enrich):
     def enrich_issue(self, item, eitem):
         eitems = []
 
-        comments = item['data'].get('comments', [])
-        if comments:
+        if comments := item['data'].get('comments', []):
             rich_item_comments = self.get_rich_issue_comments(comments, eitem)
             eitems.extend(rich_item_comments)
 
@@ -269,7 +265,9 @@ class PagureEnrich(Enrich):
             self.add_repository_labels(rich_item)
             self.add_metadata_filter_raw(rich_item)
         else:
-            logger.error("[pagure] rich item not defined for Pagure category {}".format(item['category']))
+            logger.error(
+                f"[pagure] rich item not defined for Pagure category {item['category']}"
+            )
 
         return rich_item
 

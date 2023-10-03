@@ -89,14 +89,11 @@ class ColicEnrich(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_colic_analysis)
+        self.studies = [self.enrich_colic_analysis]
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        identities = []
-
-        return identities
+        return []
 
     def has_identities(self):
         """ Return whether the enriched items contains identities """
@@ -111,7 +108,7 @@ class ColicEnrich(Enrich):
         to the given repository
         """
 
-        query_total_files = """
+        return """
         {
             "size": 0,
             "aggs": {
@@ -138,16 +135,17 @@ class ColicEnrich(Enrich):
                 }
             }
         }
-        """ % (repository_url, to_date)
-
-        return query_total_files
+        """ % (
+            repository_url,
+            to_date,
+        )
 
     def __get_licensed_files(self, repository_url, to_date):
         """ Retrieve all the licensed files until the to_date, corresponding
         to the given repository.
         """
 
-        query_licensed_files = """
+        return """
         {
             "size": 0,
             "aggs": {
@@ -179,16 +177,17 @@ class ColicEnrich(Enrich):
                 }
             }
         }
-        """ % (repository_url, to_date)
-
-        return query_licensed_files
+        """ % (
+            repository_url,
+            to_date,
+        )
 
     def __get_copyrighted_files(self, repository_url, to_date):
         """ Retrieve all the copyrighted files until the to_date, corresponding
         to the given repository.
         """
 
-        query_copyrighted_files = """
+        return """
         {
             "size": 0,
             "aggs": {
@@ -220,9 +219,10 @@ class ColicEnrich(Enrich):
                 }
             }
         }
-        """ % (repository_url, to_date)
-
-        return query_copyrighted_files
+        """ % (
+            repository_url,
+            to_date,
+        )
 
     def extract_modules(self, file_path):
         """ Extracts module path from the given file path """
@@ -230,9 +230,7 @@ class ColicEnrich(Enrich):
 
         modules = []
         for idx in range(len(path_chunks)):
-            sub_path = '/'.join(path_chunks[:idx])
-
-            if sub_path:
+            if sub_path := '/'.join(path_chunks[:idx]):
                 modules.append(sub_path)
 
         return modules
@@ -241,8 +239,7 @@ class ColicEnrich(Enrich):
     def __get_rich_scancode(self, file_analysis):
         # Scancode and Scancode-CLI Implementation
 
-        eitem = {}
-        eitem["file_path"] = file_analysis["file_path"]
+        eitem = {"file_path": file_analysis["file_path"]}
         eitem["modules"] = self.extract_modules(eitem["file_path"])
         eitem["copyrights"] = []
         eitem["licenses"] = []
@@ -267,8 +264,7 @@ class ColicEnrich(Enrich):
     def __get_rich_nomossa(self, file_analysis):
         # NOMOS analyzer implementation
 
-        eitem = {}
-        eitem["file_path"] = file_analysis["file_path"]
+        eitem = {"file_path": file_analysis["file_path"]}
         eitem["modules"] = self.extract_modules(eitem["file_path"])
         eitem["licenses"] = []
         eitem["license_name"] = []
@@ -323,7 +319,7 @@ class ColicEnrich(Enrich):
                 eitem.update(self.get_item_project(eitem))
 
             # uuid
-            eitem['id'] = "{}_{}".format(eitem['commit_sha'], eitem['file_path'])
+            eitem['id'] = f"{eitem['commit_sha']}_{eitem['file_path']}"
 
             eitem.update(self.get_grimoire_fields(entry["AuthorDate"], "file"))
 
@@ -356,9 +352,9 @@ class ColicEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[colic] {}/{} missing items".format(missing, num_items))
+            logger.error(f"[colic] {missing}/{num_items} missing items")
         else:
-            logger.info("[colic] {} items inserted".format(num_items))
+            logger.info(f"[colic] {num_items} items inserted")
 
         return num_items
 
@@ -379,8 +375,9 @@ class ColicEnrich(Enrich):
 
         repositories = [repo['key'] for repo in unique_repos['aggregations']['unique_repos'].get('buckets', [])]
 
-        logger.info("[colic] study enrich-colic-analysis {} repositories to process".format(
-                    len(repositories)))
+        logger.info(
+            f"[colic] study enrich-colic-analysis {len(repositories)} repositories to process"
+        )
         es_out = ElasticSearch(enrich_backend.elastic.url, out_index, mappings=Mapping)
         es_out.add_alias("colic_study")
 
@@ -393,8 +390,9 @@ class ColicEnrich(Enrich):
             if repository_url_anonymized.startswith('http'):
                 repository_url_anonymized = anonymize_url(repository_url_anonymized)
 
-            logger.info("[colic] study enrich-colic-analysis start analysis for {}".format(
-                        repository_url_anonymized))
+            logger.info(
+                f"[colic] study enrich-colic-analysis start analysis for {repository_url_anonymized}"
+            )
             evolution_items = []
 
             for interval in interval_months:
@@ -424,14 +422,14 @@ class ColicEnrich(Enrich):
                         continue
 
                     evolution_item = {
-                        "id": "{}_{}_{}".format(to_month.isoformat(), hash(repository_url_anonymized), interval),
+                        "id": f"{to_month.isoformat()}_{hash(repository_url_anonymized)}_{interval}",
                         "repo_url": repository_url_anonymized,
                         "origin": repository_url,
                         "interval_months": interval,
                         "study_creation_date": to_month.isoformat(),
                         "licensed_files": licensed_files,
                         "copyrighted_files": copyrighted_files,
-                        "total_files": total_files
+                        "total_files": total_files,
                     }
 
                     evolution_item.update(self.get_grimoire_fields(evolution_item["study_creation_date"], "stats"))
@@ -451,18 +449,15 @@ class ColicEnrich(Enrich):
                 if num_items != ins_items:
                     missing = num_items - ins_items
                     logger.error(
-                        "[colic] study enrich-colic-analysis {}/{} missing items for Graal CoLic Analysis "
-                        "Study".format(missing, num_items)
+                        f"[colic] study enrich-colic-analysis {missing}/{num_items} missing items for Graal CoLic Analysis Study"
                     )
                 else:
                     logger.info(
-                        "[colic] study enrich-colic-analysis {} items inserted for Graal CoLic Analysis "
-                        "Study".format(num_items)
+                        f"[colic] study enrich-colic-analysis {num_items} items inserted for Graal CoLic Analysis Study"
                     )
 
             logger.info(
-                "[colic] study enrich-colic-analysis end analysis for {} with month interval".format(
-                    repository_url_anonymized)
+                f"[colic] study enrich-colic-analysis end analysis for {repository_url_anonymized} with month interval"
             )
 
         logger.info("[colic] study enrich-colic-analysis end")

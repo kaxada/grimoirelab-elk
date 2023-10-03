@@ -51,14 +51,11 @@ class MockElasticSearch(ElasticSearch):
         self.index = index
         self.major = major
         self.distribution = distribution
-        self.index_url = self.url + "/" + self.index
+        self.index_url = f"{self.url}/{self.index}"
         self.mock_list_aliases = mock_list_alias
 
     def list_aliases(self):
-        if not self.mock_list_aliases:
-            return super().list_aliases()
-        else:
-            return []
+        return super().list_aliases() if not self.mock_list_aliases else []
 
 
 def read_file(filename, mode='r'):
@@ -82,7 +79,7 @@ class TestElastic(unittest.TestCase):
         cls.es_distribution = re['version'].get('distribution', ES_DISTRIBUTION)
 
     def tearDown(self):
-        target_index_url = self.es_con + "/" + self.target_index
+        target_index_url = f"{self.es_con}/{self.target_index}"
         requests.delete(target_index_url, verify=False)
 
     def test_init(self):
@@ -91,7 +88,7 @@ class TestElastic(unittest.TestCase):
         elastic = ElasticSearch(self.es_con, self.target_index, GitOcean.mapping)
         self.assertEqual(elastic.url, self.es_con)
         self.assertEqual(elastic.index, self.target_index)
-        self.assertEqual(elastic.index_url, self.es_con + "/" + self.target_index)
+        self.assertEqual(elastic.index_url, f"{self.es_con}/{self.target_index}")
         self.assertIsNone(elastic.aliases)
 
     @httpretty.activate
@@ -246,9 +243,9 @@ class TestElastic(unittest.TestCase):
         elastic = ElasticSearch(self.es_con, self.target_index, GitOcean.mapping, aliases=["A", "B"])
         self.assertEqual(elastic.url, self.es_con)
         self.assertEqual(elastic.index, self.target_index)
-        self.assertEqual(elastic.index_url, self.es_con + "/" + self.target_index)
+        self.assertEqual(elastic.index_url, f"{self.es_con}/{self.target_index}")
 
-        r = elastic.requests.get(elastic.index_url + '/_alias')
+        r = elastic.requests.get(f'{elastic.index_url}/_alias')
         aliases = r.json()[self.target_index]['aliases']
 
         self.assertDictEqual(aliases, expected_aliases)
@@ -264,9 +261,9 @@ class TestElastic(unittest.TestCase):
         elastic = ElasticSearch(self.es_con, self.target_index, GitOcean.mapping, aliases=["A", "B", "A"])
         self.assertEqual(elastic.url, self.es_con)
         self.assertEqual(elastic.index, self.target_index)
-        self.assertEqual(elastic.index_url, self.es_con + "/" + self.target_index)
+        self.assertEqual(elastic.index_url, f"{self.es_con}/{self.target_index}")
 
-        r = elastic.requests.get(elastic.index_url + '/_alias')
+        r = elastic.requests.get(f'{elastic.index_url}/_alias')
         aliases = r.json()[self.target_index]['aliases']
 
         self.assertDictEqual(aliases, expected_aliases)
@@ -307,7 +304,7 @@ class TestElastic(unittest.TestCase):
     def test_create_index_error(self):
         """Test whether an error is thrown when the index isn't created"""
 
-        url = self.es_con + '/' + self.target_index
+        url = f'{self.es_con}/{self.target_index}'
         httpretty.register_uri(httpretty.GET,
                                url,
                                body={},
@@ -333,7 +330,7 @@ class TestElastic(unittest.TestCase):
         elastic = ElasticSearch(self.es_con, self.target_index)
         elastic.create_mappings(GitOcean.mapping.get_elastic_mappings(elastic.major))
 
-        r = elastic.requests.get(elastic.index_url + '/_mapping')
+        r = elastic.requests.get(f'{elastic.index_url}/_mapping')
         mapping = r.json()
         self.assertIsNotNone(mapping[self.target_index]['mappings'])
 
@@ -344,10 +341,10 @@ class TestElastic(unittest.TestCase):
         elastic = MockElasticSearch(self.es_con, self.target_index)
 
         if (elastic.major == '7' and elastic.distribution == ES_DISTRIBUTION) or \
-           (elastic.major == '1' and elastic.distribution == OS_DISTRIBUTION):
-            url = elastic.index_url + "/_mapping"
+               (elastic.major == '1' and elastic.distribution == OS_DISTRIBUTION):
+            url = f"{elastic.index_url}/_mapping"
         else:
-            url = elastic.index_url + "/items/_mapping"
+            url = f"{elastic.index_url}/items/_mapping"
 
         httpretty.register_uri(httpretty.PUT,
                                url,
@@ -368,10 +365,10 @@ class TestElastic(unittest.TestCase):
         elastic = MockElasticSearch(self.es_con, self.target_index)
 
         if (elastic.major == '7' and elastic.distribution == ES_DISTRIBUTION) or \
-           (elastic.major == '1' and elastic.distribution == OS_DISTRIBUTION):
-            url = elastic.index_url + "/_mapping"
+               (elastic.major == '1' and elastic.distribution == OS_DISTRIBUTION):
+            url = f"{elastic.index_url}/_mapping"
         else:
-            url = elastic.index_url + "/items/_mapping"
+            url = f"{elastic.index_url}/items/_mapping"
 
         httpretty.register_uri(httpretty.PUT,
                                url,
@@ -399,7 +396,7 @@ class TestElastic(unittest.TestCase):
     def test_all_es_aliases_error(self):
         """Test whether a warning message is logged when the aliases are not returned"""
 
-        url = self.es_con + "/_aliases"
+        url = f"{self.es_con}/_aliases"
         httpretty.register_uri(httpretty.GET,
                                url,
                                body={},
@@ -431,7 +428,7 @@ class TestElastic(unittest.TestCase):
     def test_list_aliases_warning(self):
         """Test whether a warning message is logged when the aliases for a given index are not returned"""
 
-        url = self.es_con + '/' + self.target_index + "/_alias"
+        url = f'{self.es_con}/{self.target_index}/_alias'
         httpretty.register_uri(httpretty.GET,
                                url,
                                body={},
@@ -490,7 +487,7 @@ class TestElastic(unittest.TestCase):
     def test_add_alias_warning(self):
         """Test whether a warning message is logged when the aliases for a given index are not returned"""
 
-        url = self.es_con + "/_aliases"
+        url = f"{self.es_con}/_aliases"
         httpretty.register_uri(httpretty.POST,
                                url,
                                body={},
@@ -551,7 +548,9 @@ class TestElastic(unittest.TestCase):
 
         items = json.loads(read_file('data/git.json'))
         data_json = items[0]
-        data_json['origin'] = ''.join(random.choice(string.ascii_letters) for x in range(66000))
+        data_json['origin'] = ''.join(
+            random.choice(string.ascii_letters) for _ in range(66000)
+        )
         bulk_json = '{{"index" : {{"_id" : "{}" }} }}\n'.format(data_json['uuid'])
         bulk_json += json.dumps(data_json) + "\n"
 
@@ -570,18 +569,18 @@ class TestElastic(unittest.TestCase):
         elastic = MockElasticSearch(self.es_con, self.target_index,
                                     major='7', distribution=ES_DISTRIBUTION)
 
-        expected_url = elastic.url + '/' + elastic.index + '/_bulk'
+        expected_url = f'{elastic.url}/{elastic.index}/_bulk'
         self.assertEqual(elastic.get_bulk_url(), expected_url)
 
         elastic = MockElasticSearch(self.es_con, self.target_index,
                                     major='6', distribution=ES_DISTRIBUTION)
-        expected_url = elastic.url + '/' + elastic.index + '/items/_bulk'
+        expected_url = f'{elastic.url}/{elastic.index}/items/_bulk'
         self.assertEqual(elastic.get_bulk_url(), expected_url)
 
         elastic = MockElasticSearch(self.es_con, self.target_index,
                                     major='1', distribution=OS_DISTRIBUTION)
 
-        expected_url = elastic.url + '/' + elastic.index + '/_bulk'
+        expected_url = f'{elastic.url}/{elastic.index}/_bulk'
         self.assertEqual(elastic.get_bulk_url(), expected_url)
 
     def test_get_mapping_url(self):
@@ -590,18 +589,18 @@ class TestElastic(unittest.TestCase):
         elastic = MockElasticSearch(self.es_con, self.target_index,
                                     major='7', distribution=ES_DISTRIBUTION)
 
-        expected_url = elastic.url + '/' + elastic.index + '/_mapping'
+        expected_url = f'{elastic.url}/{elastic.index}/_mapping'
         self.assertEqual(elastic.get_mapping_url(), expected_url)
 
         elastic = MockElasticSearch(self.es_con, self.target_index,
                                     major='6', distribution=ES_DISTRIBUTION)
-        expected_url = elastic.url + '/' + elastic.index + '/items/_mapping'
+        expected_url = f'{elastic.url}/{elastic.index}/items/_mapping'
         self.assertEqual(elastic.get_mapping_url(_type='items'), expected_url)
 
         elastic = MockElasticSearch(self.es_con, self.target_index,
                                     major='1', distribution=OS_DISTRIBUTION)
 
-        expected_url = elastic.url + '/' + elastic.index + '/_mapping'
+        expected_url = f'{elastic.url}/{elastic.index}/_mapping'
         self.assertEqual(elastic.get_mapping_url(), expected_url)
 
     def test_all_properties(self):
@@ -634,10 +633,10 @@ class TestElastic(unittest.TestCase):
         """Test whether an error message is logged when the properties aren't retrieved"""
 
         if (self.es_major == '7' and self.es_distribution == 'elasticsearch') or \
-           (self.es_major == '1' and self.es_distribution == 'opensearch'):
-            url = self.es_con + '/' + self.target_index + '/_mapping'
+               (self.es_major == '1' and self.es_distribution == 'opensearch'):
+            url = f'{self.es_con}/{self.target_index}/_mapping'
         else:
-            url = self.es_con + '/' + self.target_index + '/items/_mapping'
+            url = f'{self.es_con}/{self.target_index}/items/_mapping'
 
         httpretty.register_uri(httpretty.GET,
                                url,
@@ -778,7 +777,7 @@ class TestElastic(unittest.TestCase):
         new_items = elastic.bulk_upload(items, field_id="uuid")
         self.assertEqual(new_items, 11)
 
-        url = self.es_con + '/' + self.target_index + '/_count'
+        url = f'{self.es_con}/{self.target_index}/_count'
 
         elastic.delete_items(retention_time=90000000, time_field='timestamp')
         left_items = elastic.requests.get(url).json()['count']
@@ -800,7 +799,7 @@ class TestElastic(unittest.TestCase):
         new_items = elastic.bulk_upload(items, field_id="uuid")
         self.assertEqual(new_items, 11)
 
-        url = self.es_con + '/' + self.target_index + '/_count'
+        url = f'{self.es_con}/{self.target_index}/_count'
 
         elastic.delete_items(retention_time=None, time_field='timestamp')
         left_items = elastic.requests.get(url).json()['count']

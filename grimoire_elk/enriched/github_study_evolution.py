@@ -24,7 +24,7 @@
 def get_unique_repository_with_project_name():
     """ Retrieve all the repository names from the index. """
 
-    query_unique_repository = """
+    return """
     {
         "size": 0,
         "aggs": {
@@ -48,11 +48,9 @@ def get_unique_repository_with_project_name():
     }
     """
 
-    return query_unique_repository
-
 
 def get_issues_not_closed_by_label(repository_url, to_date, label):
-    issues_not_closed = """
+    return """
     {
       "size": 10000,
       "query": {
@@ -77,13 +75,15 @@ def get_issues_not_closed_by_label(repository_url, to_date, label):
           }
       }
     }
-    """ % (repository_url, label, to_date)
-
-    return issues_not_closed
+    """ % (
+        repository_url,
+        label,
+        to_date,
+    )
 
 
 def get_issues_open_at_by_label(repository_url, to_date, label):
-    issues_open_at = """
+    return """
     {
       "size": 10000,
       "query": {
@@ -106,13 +106,16 @@ def get_issues_open_at_by_label(repository_url, to_date, label):
           }
       }
     }
-    """ % (repository_url, label, to_date, to_date)
-
-    return issues_open_at
+    """ % (
+        repository_url,
+        label,
+        to_date,
+        to_date,
+    )
 
 
 def get_issues_not_closed_other_label(repository_url, to_date, exclude_labels):
-    issues_not_closed = """
+    return """
     {
       "size": 10000,
       "query": {
@@ -138,13 +141,15 @@ def get_issues_not_closed_other_label(repository_url, to_date, exclude_labels):
           }
       }
     }
-    """ % (str(exclude_labels).replace("'", "\""), repository_url, to_date)
-
-    return issues_not_closed
+    """ % (
+        str(exclude_labels).replace("'", "\""),
+        repository_url,
+        to_date,
+    )
 
 
 def get_issues_open_at_other_label(repository_url, to_date, exclude_labels):
-    issues_open_at = """
+    return """
     {
       "size": 10000,
       "query": {
@@ -169,15 +174,17 @@ def get_issues_open_at_other_label(repository_url, to_date, exclude_labels):
           }
       }
     }
-    """ % (str(exclude_labels).replace("'", "\""),
-           repository_url, to_date, to_date)
-
-    return issues_open_at
+    """ % (
+        str(exclude_labels).replace("'", "\""),
+        repository_url,
+        to_date,
+        to_date,
+    )
 
 
 def get_issues_dates(interval, repository_url):
 
-    query_issues_dates = """
+    return """
 {
     "size": 0,
     "aggs" : {
@@ -210,6 +217,7 @@ def get_issues_dates(interval, repository_url):
             }
         }
     }
-    """ % (interval, repository_url)
-
-    return query_issues_dates
+    """ % (
+        interval,
+        repository_url,
+    )

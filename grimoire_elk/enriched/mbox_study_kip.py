@@ -88,7 +88,7 @@ def kafka_kip(enrich):
         if len(kip_tokens) > 2:
             # [KIP-DISCUSSION] KIP-7 Security
             for token in kip_tokens:
-                kip = extract_kip("KIP" + token)
+                kip = extract_kip(f"KIP{token}")
                 if kip:
                     break
             # logger.debug("Several KIPs in %s. Found: %i", subject, kip)

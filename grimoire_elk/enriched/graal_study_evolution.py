@@ -26,7 +26,7 @@ from grimoirelab_toolkit.datetime import str_to_datetime, unixtime_to_datetime
 def get_unique_repository():
     """ Retrieve all the repository names from the index. """
 
-    query_unique_repository = """
+    return """
     {
         "size": 0,
         "aggs": {
@@ -40,15 +40,13 @@ def get_unique_repository():
     }
     """
 
-    return query_unique_repository
-
 
 def get_last_study_date(repository_url, interval):
     """ Retrieve the last study_creation_date of the item corresponding
     to given repository from the study index.
     """
 
-    query_last_study_date = """
+    return """
     {
         "size": 0,
         "aggs": {
@@ -72,9 +70,10 @@ def get_last_study_date(repository_url, interval):
             }
         }
     }
-    """ % (repository_url, interval)
-
-    return query_last_study_date
+    """ % (
+        repository_url,
+        interval,
+    )
 
 
 def get_first_enriched_date(repository_url):
@@ -82,7 +81,7 @@ def get_first_enriched_date(repository_url):
     corresponding to given repository.
     """
 
-    query_first_enriched_date = """
+    return """
     {
         "size": 0,
         "aggs": {
@@ -111,9 +110,9 @@ def get_first_enriched_date(repository_url):
             }
         }
     }
-    """ % (repository_url)
-
-    return query_first_enriched_date
+    """ % (
+        repository_url
+    )
 
 
 def get_files_at_time(repository_url, to_date):
@@ -121,7 +120,7 @@ def get_files_at_time(repository_url, to_date):
     corresponding to the given repository.
     """
 
-    query_files_at_time = """
+    return """
     {
         "size": 0,
         "aggs": {
@@ -164,9 +163,10 @@ def get_files_at_time(repository_url, to_date):
             }
         }
     }
-    """ % (repository_url, to_date)
-
-    return query_files_at_time
+    """ % (
+        repository_url,
+        to_date,
+    )
 
 
 def get_to_date(es_in, in_index, out_index, repository_url, interval):

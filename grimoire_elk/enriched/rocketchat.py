@@ -79,12 +79,11 @@ class RocketChatEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        identity = self.get_sh_identity(item)
-        yield identity
+        yield self.get_sh_identity(item)
 
     def get_project_repository(self, eitem):
         tokens = eitem['origin'].rsplit("/", 1)
-        return tokens[0] + " " + tokens[1]
+        return f"{tokens[0]} {tokens[1]}"
 
     @metadata
     def get_rich_item(self, item):
@@ -102,22 +101,19 @@ class RocketChatEnrich(Enrich):
         # parent exists in case message is a reply
         eitem['msg_parent'] = message.get('parent', None)
 
-        author = message.get('u', None)
-        if author:
+        if author := message.get('u', None):
             eitem['user_id'] = author.get('_id', None)
             eitem['user_name'] = author.get('name', None)
             eitem['user_username'] = author.get('username', None)
 
         eitem['is_edited'] = 0
-        editor = message.get('editedBy', None)
-        if editor:
+        if editor := message.get('editedBy', None):
             eitem['edited_at'] = str_to_datetime(message['editedAt']).isoformat()
             eitem['edited_by_username'] = editor.get('username', None)
             eitem['edited_by_user_id'] = editor.get('_id', None)
             eitem['is_edited'] = 1
 
-        file = message.get('file', None)
-        if file:
+        if file := message.get('file', None):
             eitem['file_id'] = file.get('_id', None)
             eitem['file_name'] = file.get('name', None)
             eitem['file_type'] = file.get('type', None)
@@ -125,25 +121,21 @@ class RocketChatEnrich(Enrich):
         eitem['replies'] = len(message['replies']) if message.get('replies', None) else 0
 
         eitem['total_reactions'] = 0
-        reactions = message.get('reactions', None)
-        if reactions:
+        if reactions := message.get('reactions', None):
             reaction_types, total_reactions = self.__get_reactions(reactions)
-            eitem.update({'reactions': reaction_types})
+            eitem['reactions'] = reaction_types
             eitem['total_reactions'] = total_reactions
 
         eitem['total_mentions'] = 0
-        mentions = message.get('mentions', None)
-        if mentions:
+        if mentions := message.get('mentions', None):
             eitem['mentions'] = self.__get_mentions(mentions)
             eitem['total_mentions'] = len(mentions)
 
-        channel_info = message.get('channel_info', None)
-        if channel_info:
+        if channel_info := message.get('channel_info', None):
             eitem.update(self.__get_channel_info(channel_info))
 
         eitem['total_urls'] = 0
-        urls = message.get('urls', None)
-        if urls:
+        if urls := message.get('urls', None):
             urls = [{'url': url['url']} for url in urls]
             eitem['message_urls'] = urls
             eitem['total_urls'] = len(urls)
