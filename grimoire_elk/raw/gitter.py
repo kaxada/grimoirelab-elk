@@ -57,10 +57,6 @@ class GitterOcean(ElasticOcean):
     def get_perceval_params_from_url(cls, url):
         """ Get the perceval params given a URL for the data source """
 
-        params = []
-
         org = url.split('/')[-2]
         room = url.split('/')[-1]
-        params.append(org)
-        params.append(room)
-        return params
+        return [org, room]

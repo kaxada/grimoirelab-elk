@@ -41,10 +41,7 @@ if __name__ == '__main__':
 
     url = args.elastic_url
 
-    clean = args.no_incremental
-    if args.fetch_cache:
-        clean = True
-
+    clean = True if args.fetch_cache else args.no_incremental
     try:
         if args.backend:
             # Configure elastic bulk size and scrolling
@@ -62,15 +59,10 @@ if __name__ == '__main__':
 
             studies_args = None
             if args.studies_list:
-                # Convert the list to the expected format in enrich_backend method
-                studies_args = []
-
-                for study in args.studies_list:
-                    studies_args.append({"name": study,
-                                         "type": study,
-                                         "params": {}
-                                         })
-
+                studies_args = [
+                    {"name": study, "type": study, "params": {}}
+                    for study in args.studies_list
+                ]
             if args.enrich or args.enrich_only:
                 unaffiliated_group = None
                 enrich_backend(url, clean, args.backend, args.backend_args, None,

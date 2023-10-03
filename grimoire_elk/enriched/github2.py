@@ -110,11 +110,12 @@ class GitHubEnrich2(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_geolocation)
-        self.studies.append(self.enrich_feelings)
-        self.studies.append(self.enrich_extra_data)
-        self.studies.append(self.enrich_demography)
+        self.studies = [
+            self.enrich_geolocation,
+            self.enrich_feelings,
+            self.enrich_extra_data,
+            self.enrich_demography,
+        ]
 
     def set_elastic(self, elastic):
         self.elastic = elastic
@@ -142,17 +143,14 @@ class GitHubEnrich2(Enrich):
             identity_types = []
 
         for identity in identity_types:
-            identity_attr = identity + "_data"
+            identity_attr = f"{identity}_data"
             if item[identity] and identity_attr in item:
-                # In user_data we have the full user data
-                user = self.get_sh_identity(item[identity_attr])
-                if user:
+                if user := self.get_sh_identity(item[identity_attr]):
                     yield user
 
         comments = item.get(comments_attr, [])
         for comment in comments:
-            user = self.get_sh_identity(comment['user_data'])
-            if user:
+            if user := self.get_sh_identity(comment['user_data']):
                 yield user
 
     def get_sh_identity(self, item, identity_field=None):
@@ -175,8 +173,7 @@ class GitHubEnrich2(Enrich):
         return identity
 
     def get_project_repository(self, eitem):
-        repo = eitem['origin']
-        return repo
+        return eitem['origin']
 
     def get_time_to_first_attention(self, item):
         """Get the first date at which a comment or reaction was made to the issue by someone
@@ -207,10 +204,7 @@ class GitHubEnrich2(Enrich):
 
             dates.append(str_to_datetime(reaction['created_at']))
 
-        if dates:
-            return min(dates)
-
-        return None
+        return min(dates, default=None)
 
     def get_time_to_merge_request_response(self, item):
         """Get the first date at which a review was made on the PR by someone
@@ -228,10 +222,7 @@ class GitHubEnrich2(Enrich):
 
             review_dates.append(str_to_datetime(comment['created_at']))
 
-        if review_dates:
-            return min(review_dates)
-
-        return None
+        return min(review_dates, default=None)
 
     def get_field_unique_id(self):
         return "id"
@@ -252,8 +243,9 @@ class GitHubEnrich2(Enrich):
         elif item['category'] == 'repository':
             rich_item = self.__get_rich_repo(item)
         else:
-            logger.error("[github] rich item not defined for GitHub category {}".format(
-                         item['category']))
+            logger.error(
+                f"[github] rich item not defined for GitHub category {item['category']}"
+            )
 
         self.add_repository_labels(rich_item)
         self.add_metadata_filter_raw(rich_item)
@@ -262,8 +254,7 @@ class GitHubEnrich2(Enrich):
     def enrich_issue(self, item, eitem):
         eitems = []
 
-        comments = item['data'].get('comments_data', [])
-        if comments:
+        if comments := item['data'].get('comments_data', []):
             rich_item_comments = self.get_rich_issue_comments(comments, eitem)
             eitems.extend(rich_item_comments)
 
@@ -304,11 +295,11 @@ class GitHubEnrich2(Enrich):
             ecomment['comment_updated_at'] = comment['updated_at']
 
             # Add id info to allow to coexistence of items of different types in the same index
-            ecomment['id'] = '{}_issue_comment_{}'.format(eitem['id'], comment['id'])
+            ecomment['id'] = f"{eitem['id']}_issue_comment_{comment['id']}"
             ecomment.update(self.get_grimoire_fields(comment['updated_at'], ISSUE_COMMENT_TYPE))
             # due to backtrack compatibility, `is_github2_*` is replaced with `is_github_*`
-            ecomment.pop('is_github2_{}'.format(ISSUE_COMMENT_TYPE))
-            ecomment['is_github_{}'.format(ISSUE_COMMENT_TYPE)] = 1
+            ecomment.pop(f'is_github2_{ISSUE_COMMENT_TYPE}')
+            ecomment[f'is_github_{ISSUE_COMMENT_TYPE}'] = 1
             ecomment['is_github_comment'] = 1
 
             # Add user_login
@@ -400,11 +391,11 @@ class GitHubEnrich2(Enrich):
             ecomment['comment_created_at'] = comment.get('created_at', comment['updated_at'])
 
             # Add id info to allow to coexistence of items of different types in the same index
-            ecomment['id'] = '{}_review_comment_{}'.format(eitem['id'], comment['id'])
+            ecomment['id'] = f"{eitem['id']}_review_comment_{comment['id']}"
             ecomment.update(self.get_grimoire_fields(comment['updated_at'], REVIEW_COMMENT_TYPE))
             # due to backtrack compatibility, `is_github2_*` is replaced with `is_github_*`
-            ecomment.pop('is_github2_{}'.format(REVIEW_COMMENT_TYPE))
-            ecomment['is_github_{}'.format(REVIEW_COMMENT_TYPE)] = 1
+            ecomment.pop(f'is_github2_{REVIEW_COMMENT_TYPE}')
+            ecomment[f'is_github_{REVIEW_COMMENT_TYPE}'] = 1
             ecomment['is_github_comment'] = 1
 
             # Add user_login
@@ -477,14 +468,14 @@ class GitHubEnrich2(Enrich):
         # remove reactions url
         item_reactions.pop('url', None)
         for reaction in item_reactions:
-            if reaction == '-1':
-                reaction_name = 'thumb_down'
-            elif reaction == '+1':
+            if reaction == '+1':
                 reaction_name = 'thumb_up'
+            elif reaction == '-1':
+                reaction_name = 'thumb_down'
             else:
                 reaction_name = reaction
 
-            reactions['reaction_{}'.format(reaction_name)] = item_reactions[reaction]
+            reactions[f'reaction_{reaction_name}'] = item_reactions[reaction]
 
         return reactions
 
@@ -496,11 +487,11 @@ class GitHubEnrich2(Enrich):
         pull_request = item['data']
 
         rich_pr['time_to_close_days'] = \
-            get_time_diff_days(pull_request['created_at'], pull_request['closed_at'])
+                get_time_diff_days(pull_request['created_at'], pull_request['closed_at'])
 
         if pull_request['state'] != 'closed':
             rich_pr['time_open_days'] = \
-                get_time_diff_days(pull_request['created_at'], datetime_utcnow().replace(tzinfo=None))
+                    get_time_diff_days(pull_request['created_at'], datetime_utcnow().replace(tzinfo=None))
         else:
             rich_pr['time_open_days'] = rich_pr['time_to_close_days']
 
@@ -529,15 +520,13 @@ class GitHubEnrich2(Enrich):
             rich_pr["merge_author_domain"] = self.get_email_domain(merged_by['email']) if merged_by['email'] else None
             rich_pr['merge_author_org'] = merged_by['company']
             rich_pr['merge_author_location'] = merged_by['location']
-            rich_pr['merge_author_geolocation'] = None
         else:
             rich_pr['merge_author_name'] = None
             rich_pr['merge_author_login'] = None
             rich_pr["merge_author_domain"] = None
             rich_pr['merge_author_org'] = None
             rich_pr['merge_author_location'] = None
-            rich_pr['merge_author_geolocation'] = None
-
+        rich_pr['merge_author_geolocation'] = None
         rich_pr['id'] = pull_request['id']
         rich_pr['pull_id'] = pull_request['id']
         rich_pr['pull_id_in_repo'] = pull_request['html_url'].split("/")[-1]
@@ -577,7 +566,7 @@ class GitHubEnrich2(Enrich):
         if pull_request['review_comments'] != 0:
             min_review_date = self.get_time_to_merge_request_response(pull_request)
             rich_pr['time_to_merge_request_response'] = \
-                get_time_diff_days(str_to_datetime(pull_request['created_at']), min_review_date)
+                    get_time_diff_days(str_to_datetime(pull_request['created_at']), min_review_date)
 
         if self.prjs_map:
             rich_pr.update(self.get_item_project(rich_pr))
@@ -587,8 +576,8 @@ class GitHubEnrich2(Enrich):
 
         rich_pr.update(self.get_grimoire_fields(pull_request['created_at'], PULL_TYPE))
         # due to backtrack compatibility, `is_github2_*` is replaced with `is_github_*`
-        rich_pr.pop('is_github2_{}'.format(PULL_TYPE))
-        rich_pr['is_github_{}'.format(PULL_TYPE)] = 1
+        rich_pr.pop(f'is_github2_{PULL_TYPE}')
+        rich_pr[f'is_github_{PULL_TYPE}'] = 1
 
         if self.sortinghat:
             item[self.get_field_date()] = rich_pr[self.get_field_date()]
@@ -604,11 +593,11 @@ class GitHubEnrich2(Enrich):
         issue = item['data']
 
         rich_issue['time_to_close_days'] = \
-            get_time_diff_days(issue['created_at'], issue['closed_at'])
+                get_time_diff_days(issue['created_at'], issue['closed_at'])
 
         if issue['state'] != 'closed':
             rich_issue['time_open_days'] = \
-                get_time_diff_days(issue['created_at'], datetime_utcnow().replace(tzinfo=None))
+                    get_time_diff_days(issue['created_at'], datetime_utcnow().replace(tzinfo=None))
         else:
             rich_issue['time_open_days'] = rich_issue['time_to_close_days']
 
@@ -637,15 +626,13 @@ class GitHubEnrich2(Enrich):
             rich_issue["assignee_domain"] = self.get_email_domain(assignee['email']) if assignee['email'] else None
             rich_issue['assignee_org'] = assignee['company']
             rich_issue['assignee_location'] = assignee['location']
-            rich_issue['assignee_geolocation'] = None
         else:
             rich_issue['assignee_name'] = None
             rich_issue['assignee_login'] = None
             rich_issue["assignee_domain"] = None
             rich_issue['assignee_org'] = None
             rich_issue['assignee_location'] = None
-            rich_issue['assignee_geolocation'] = None
-
+        rich_issue['assignee_geolocation'] = None
         rich_issue['id'] = issue['id']
         rich_issue['issue_id'] = issue['id']
         rich_issue['issue_id_in_repo'] = issue['html_url'].split("/")[-1]
@@ -683,13 +670,13 @@ class GitHubEnrich2(Enrich):
         rich_issue['time_to_first_attention'] = None
         if issue['comments'] + issue['reactions']['total_count'] != 0:
             rich_issue['time_to_first_attention'] = \
-                get_time_diff_days(str_to_datetime(issue['created_at']),
+                    get_time_diff_days(str_to_datetime(issue['created_at']),
                                    self.get_time_to_first_attention(issue))
 
         rich_issue.update(self.get_grimoire_fields(issue['created_at'], ISSUE_TYPE))
         # due to backtrack compatibility, `is_github2_*` is replaced with `is_github_*`
-        rich_issue.pop('is_github2_{}'.format(ISSUE_TYPE))
-        rich_issue['is_github_{}'.format(ISSUE_TYPE)] = 1
+        rich_issue.pop(f'is_github2_{ISSUE_TYPE}')
+        rich_issue[f'is_github_{ISSUE_TYPE}'] = 1
 
         if self.sortinghat:
             item[self.get_field_date()] = rich_issue[self.get_field_date()]
@@ -716,7 +703,7 @@ class GitHubEnrich2(Enrich):
 
         rich_repo.update(self.get_grimoire_fields(item['metadata__updated_on'], REPOSITORY_TYPE))
         # due to backtrack compatibility, `is_github2_*` is replaced with `is_github_*`
-        rich_repo.pop('is_github2_{}'.format(REPOSITORY_TYPE))
-        rich_repo['is_github_{}'.format(REPOSITORY_TYPE)] = 1
+        rich_repo.pop(f'is_github2_{REPOSITORY_TYPE}')
+        rich_repo[f'is_github_{REPOSITORY_TYPE}'] = 1
 
         return rich_repo

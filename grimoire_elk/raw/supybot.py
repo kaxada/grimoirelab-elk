@@ -27,7 +27,4 @@ class SupybotOcean(ElasticOcean):
 
     @classmethod
     def get_perceval_params_from_url(cls, url):
-        # In the url the uri and the data dir are included
-        params = url.split()
-
-        return params
+        return url.split()

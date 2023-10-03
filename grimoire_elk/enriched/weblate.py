@@ -64,8 +64,7 @@ class WeblateEnrich(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_demography)
+        self.studies = [self.enrich_demography]
 
     def get_field_author(self):
         return "author_data"
@@ -92,12 +91,10 @@ class WeblateEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        identity = self.get_sh_identity(item)
-        yield identity
+        yield self.get_sh_identity(item)
 
     def get_project_repository(self, eitem):
-        repo = eitem['origin']
-        return repo
+        return eitem['origin']
 
     @metadata
     def get_rich_item(self, item):
@@ -118,29 +115,26 @@ class WeblateEnrich(Enrich):
         eitem['change_api_url'] = change['url']
 
         eitem['author_api_url'] = change['author']
-        author_data = change.get('author_data', None)
-        if author_data:
+        if author_data := change.get('author_data', None):
             for data in author_data:
-                eitem['author_' + data] = author_data[data]
+                eitem[f'author_{data}'] = author_data[data]
 
         eitem['user_api_url'] = change.get('user', None)
         if eitem['user_api_url']:
             username = eitem['user_api_url']
             eitem['user_name'] = username.split('api/users/')[1].split('/')[0] if username else None
 
-        user_data = change.get('user_data', None)
-        if user_data:
+        if user_data := change.get('user_data', None):
             for data in user_data:
-                eitem['user_' + data] = user_data[data]
+                eitem[f'user_{data}'] = user_data[data]
 
         eitem['unit_api_url'] = change['unit']
-        unit_data = change.get('unit_data', None)
-        if unit_data:
+        if unit_data := change.get('unit_data', None):
             for data in unit_data:
                 if 'has_' in data:
-                    eitem['unit_' + data] = 1 if unit_data[data] else 0
+                    eitem[f'unit_{data}'] = 1 if unit_data[data] else 0
                 else:
-                    eitem['unit_' + data] = unit_data[data]
+                    eitem[f'unit_{data}'] = unit_data[data]
 
         eitem['component_api_url'] = change.get('component', None)
         if eitem['component_api_url']:

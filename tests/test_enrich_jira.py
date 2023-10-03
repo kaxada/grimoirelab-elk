@@ -38,11 +38,9 @@ class TestEnrichJira(unittest.TestCase):
         self.ritems = []
         self.eitems = []
         with open(os.path.join("data", "jira_raw_fields.json")) as f:
-            for line in f:
-                self.ritems.append(json.loads(line))
+            self.ritems.extend(json.loads(line) for line in f)
         with open(os.path.join("data", "jira_enriched_fields.json")) as f:
-            for line in f:
-                self.eitems.append(json.loads(line))
+            self.eitems.extend(json.loads(line) for line in f)
 
     def test_enrich_fields(self):
         """Test enrich_fields function"""

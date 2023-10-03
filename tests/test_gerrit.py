@@ -248,12 +248,13 @@ class TestGerrit(TestBaseBackend):
                              'INFO:grimoire_elk.enriched.enrich:[gerrit] '
                              'Demography starting study %s/test_gerrit_enrich'
                              % anonymize_url(self.es_con))
-            self.assertEqual(cm.output[-1],
-                             'INFO:grimoire_elk.enriched.enrich:[gerrit] Demography end %s/test_gerrit_enrich'
-                             % anonymize_url(self.es_con))
+            self.assertEqual(
+                cm.output[-1],
+                f'INFO:grimoire_elk.enriched.enrich:[gerrit] Demography end {anonymize_url(self.es_con)}/test_gerrit_enrich',
+            )
 
         time.sleep(5)  # HACK: Wait until git enrich index has been written
-        items = [i for i in enrich_backend.fetch()]
+        items = list(enrich_backend.fetch())
         for item in items:
             if item['type'] == 'patchset' and item['patchset_author_name'] is None:
                 self.assertFalse('demography_min_date' in item.keys())
@@ -262,8 +263,11 @@ class TestGerrit(TestBaseBackend):
                 self.assertTrue('demography_min_date' in item.keys())
                 self.assertTrue('demography_max_date' in item.keys())
 
-        r = enrich_backend.elastic.requests.get(enrich_backend.elastic.index_url + "/_alias",
-                                                headers=HEADER_JSON, verify=False)
+        r = enrich_backend.elastic.requests.get(
+            f"{enrich_backend.elastic.index_url}/_alias",
+            headers=HEADER_JSON,
+            verify=False,
+        )
         self.assertIn(alias, r.json()[enrich_backend.elastic.index]['aliases'])
 
     def test_demography_contribution_study(self):
@@ -281,12 +285,13 @@ class TestGerrit(TestBaseBackend):
                              'INFO:grimoire_elk.enriched.enrich:[gerrit] '
                              'Demography Contribution starting study %s/test_gerrit_enrich'
                              % anonymize_url(self.es_con))
-            self.assertEqual(cm.output[-1],
-                             'INFO:grimoire_elk.enriched.enrich:[gerrit] Demography Contribution end %s/test_gerrit_enrich'
-                             % anonymize_url(self.es_con))
+            self.assertEqual(
+                cm.output[-1],
+                f'INFO:grimoire_elk.enriched.enrich:[gerrit] Demography Contribution end {anonymize_url(self.es_con)}/test_gerrit_enrich',
+            )
 
         time.sleep(5)  # HACK: Wait until gerrit enrich index has been written
-        items = [i for i in enrich_backend.fetch()]
+        items = list(enrich_backend.fetch())
         for item in items:
             if 'author_uuid' not in item:
                 continue
@@ -304,8 +309,11 @@ class TestGerrit(TestBaseBackend):
                 self.assertIn('patchset_min_date', item)
                 self.assertIn('patchset_max_date', item)
 
-        r = enrich_backend.elastic.requests.get(enrich_backend.elastic.index_url + "/_alias",
-                                                headers=HEADER_JSON, verify=False)
+        r = enrich_backend.elastic.requests.get(
+            f"{enrich_backend.elastic.index_url}/_alias",
+            headers=HEADER_JSON,
+            verify=False,
+        )
         self.assertIn(alias, r.json()[enrich_backend.elastic.index]['aliases'])
 
     def test_raw_to_enrich_sorting_hat(self):

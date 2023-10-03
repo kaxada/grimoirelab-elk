@@ -123,7 +123,7 @@ class TestRocketChat(TestBaseBackend):
         self.assertEqual(result['raw'], 10)
         self.assertEqual(result['enrich'], 10)
 
-        res = requests.get(self.es_con + "/" + self.enrich_index + "/_search", verify=False)
+        res = requests.get(f"{self.es_con}/{self.enrich_index}/_search", verify=False)
         for eitem in res.json()['hits']['hits']:
             self.assertEqual(eitem['_source']['project'], "Main")
 

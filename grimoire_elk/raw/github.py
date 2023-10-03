@@ -93,13 +93,9 @@ class GitHubOcean(ElasticOcean):
     @classmethod
     def get_perceval_params_from_url(cls, url):
         """ Get the perceval params given a URL for the data source """
-        params = []
-
         owner = url.split('/')[-2]
         repository = url.split('/')[-1]
-        params.append(owner)
-        params.append(repository)
-        return params
+        return [owner, repository]
 
     def _fix_item(self, item):
         category = item['category']
@@ -124,7 +120,7 @@ class GitHubOcean(ElasticOcean):
             if not item[identity]:
                 continue
 
-            identity_attr = identity + "_data"
+            identity_attr = f"{identity}_data"
 
             item[identity_attr] = {
                 'name': item[identity]['login'],

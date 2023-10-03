@@ -63,7 +63,4 @@ class DockerHubOcean(ElasticOcean):
 
     @classmethod
     def get_perceval_params_from_url(cls, url):
-        # In the url the org and the repository are included
-        params = url.split()
-
-        return params
+        return url.split()

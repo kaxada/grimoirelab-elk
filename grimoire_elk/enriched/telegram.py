@@ -60,14 +60,11 @@ class TelegramEnrich(Enrich):
         return "from"
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-
         from_ = item
         if isinstance(item, dict) and 'data' in item:
             from_ = item['data']['message'][identity_field]
 
-        identity['username'] = from_.get('username', None)
-        identity['email'] = None
+        identity = {'username': from_.get('username', None), 'email': None}
         identity['name'] = from_.get('first_name', None)
 
         return identity
@@ -76,9 +73,7 @@ class TelegramEnrich(Enrich):
         """ Return the identities from an item """
 
         message = item['data']['message']
-        identity = self.get_sh_identity(message['from'])
-
-        yield identity
+        yield self.get_sh_identity(message['from'])
 
     @metadata
     def get_rich_item(self, item):
@@ -93,20 +88,13 @@ class TelegramEnrich(Enrich):
         # data fields to copy
         copy_fields = ["message_id", "sticker"]
         for f in copy_fields:
-            if f in message:
-                eitem[f] = message[f]
-            else:
-                eitem[f] = None
+            eitem[f] = message[f] if f in message else None
         # Fields which names are translated
         map_fields = {"text": "message",
                       "date": "sent_date,"
                       }
         for f in map_fields:
-            if f in message:
-                eitem[map_fields[f]] = message[f]
-            else:
-                eitem[map_fields[f]] = None
-
+            eitem[map_fields[f]] = message[f] if f in message else None
         if "text" in message:
             eitem["text_analyzed"] = message["text"]
 

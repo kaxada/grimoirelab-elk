@@ -79,15 +79,15 @@ def feed_backend(url, clean, fetch_archive, backend_name, backend_params,
         clean = False  # don't remove index, it could be shared
 
     if not get_connector_from_name(backend_name):
-        raise RuntimeError("Unknown backend {}".format(backend_name))
+        raise RuntimeError(f"Unknown backend {backend_name}")
     connector = get_connector_from_name(backend_name)
     klass = connector[3]  # BackendCmd for the connector
 
     try:
-        logger.debug("Feeding raw from {} ({})".format(backend_name, es_index))
+        logger.debug(f"Feeding raw from {backend_name} ({es_index})")
 
         if not es_index:
-            logger.error("Raw index not defined for {}".format(backend_name))
+            logger.error(f"Raw index not defined for {backend_name}")
 
         repo['repo_update_start'] = datetime_utcnow().isoformat()
 
@@ -194,33 +194,35 @@ def feed_backend(url, clean, fetch_archive, backend_name, backend_params,
         ocean_backend.feed(**params)
 
     except RateLimitError as ex:
-        logger.error("Error feeding raw from {} ({}): rate limit exceeded".format(backend_name, backend.origin))
-        error_msg = "RateLimitError: seconds to reset {}".format(ex.seconds_to_reset)
+        logger.error(
+            f"Error feeding raw from {backend_name} ({backend.origin}): rate limit exceeded"
+        )
+        error_msg = f"RateLimitError: seconds to reset {ex.seconds_to_reset}"
     except Exception as ex:
         if backend:
-            error_msg = "Error feeding raw from {} ({}): {}".format(backend_name, backend.origin, ex)
-            logger.error(error_msg, exc_info=True)
+            error_msg = f"Error feeding raw from {backend_name} ({backend.origin}): {ex}"
         else:
-            error_msg = "Error feeding raw from {}".format(ex)
-            logger.error(error_msg, exc_info=True)
+            error_msg = f"Error feeding raw from {ex}"
+        logger.error(error_msg, exc_info=True)
     except SystemExit:
         anonymized_params = anonymize_params(backend_params)
-        msg = "Wrong {} arguments: {}".format(backend_name, anonymized_params)
-        error_msg = "Error feeding raw. {}".format(msg)
+        msg = f"Wrong {backend_name} arguments: {anonymized_params}"
+        error_msg = f"Error feeding raw. {msg}"
         logger.error(error_msg, exc_info=True)
 
     try:
-        msg = "[{}] Done collection for {}".format(backend_name, anonymize_url(backend.origin))
+        msg = f"[{backend_name}] Done collection for {anonymize_url(backend.origin)}"
     except AttributeError:
-        msg = "[{}] Done collection for {}".format(backend_name, anonymize_url(projects_json_repo))
+        msg = f"[{backend_name}] Done collection for {anonymize_url(projects_json_repo)}"
     logger.info(msg)
 
     return error_msg
 
 
 def refresh_projects(enrich_backend):
-    logger.debug("Refreshing project field in {}".format(
-                 anonymize_url(enrich_backend.elastic.index_url)))
+    logger.debug(
+        f"Refreshing project field in {anonymize_url(enrich_backend.elastic.index_url)}"
+    )
     total = 0
 
     eitems = enrich_backend.fetch()
@@ -230,7 +232,7 @@ def refresh_projects(enrich_backend):
         yield eitem
         total += 1
 
-    logger.debug("Total eitems refreshed for project field {}".format(total))
+    logger.debug(f"Total eitems refreshed for project field {total}")
 
 
 def refresh_identities(enrich_backend, author_fields=None, author_values=None):
@@ -251,7 +253,7 @@ def refresh_identities(enrich_backend, author_fields=None, author_values=None):
     def create_filter_authors(authors, to_refresh):
         filter_authors = []
         for author in authors:
-            author_name = author if author == 'author_uuid' else author + '_uuids'
+            author_name = author if author == 'author_uuid' else f'{author}_uuids'
             field_author = {
                 "name": author_name,
                 "value": to_refresh
@@ -370,8 +372,9 @@ def load_bulk_identities(items_count, new_identities, sh_db, connector_name):
 
     SortingHat.add_identities(sh_db, new_identities, connector_name)
 
-    logger.debug("Processed {} items identities ({} identities) from {}".format(
-                 items_count, len(new_identities), connector_name))
+    logger.debug(
+        f"Processed {items_count} items identities ({len(new_identities)} identities) from {connector_name}"
+    )
 
     return identities_count
 
@@ -395,7 +398,7 @@ def get_ocean_backend(backend_cmd, enrich_backend, no_incremental, filter_raw=No
     else:
         last_enrich = get_last_enrich(backend_cmd, enrich_backend, filter_raw=filter_raw)
 
-    logger.debug("Last enrichment: {}".format(last_enrich))
+    logger.debug(f"Last enrichment: {last_enrich}")
 
     backend = None
 
@@ -406,19 +409,19 @@ def get_ocean_backend(backend_cmd, enrich_backend, no_incremental, filter_raw=No
         backend = backend_cmd.backend
 
         signature = inspect.signature(backend.fetch)
-        if 'from_date' in signature.parameters:
+        if (
+            'from_date' not in signature.parameters
+            and 'offset' not in signature.parameters
+            and last_enrich
+            or 'from_date' in signature.parameters
+        ):
             ocean_backend = connector[1](backend, from_date=last_enrich)
-        elif 'offset' in signature.parameters:
-            ocean_backend = connector[1](backend, offset=last_enrich)
+        elif 'offset' not in signature.parameters:
+            ocean_backend = connector[1](backend)
         else:
-            if last_enrich:
-                ocean_backend = connector[1](backend, from_date=last_enrich)
-            else:
-                ocean_backend = connector[1](backend)
+            ocean_backend = connector[1](backend, offset=last_enrich)
     else:
-        # We can have params for non perceval backends also
-        params = enrich_backend.backend_params
-        if params:
+        if params := enrich_backend.backend_params:
             try:
                 date_pos = params.index('--from-date')
                 last_enrich = str_to_datetime(params[date_pos + 1])
@@ -451,11 +454,11 @@ def do_studies(ocean_backend, enrich_backend, studies_args, retention_time=None)
 
         for (name, params) in selected_studies:
             data_source = enrich_backend.__class__.__name__.split("Enrich")[0].lower()
-            logger.info("[{}] Starting study: {}, params {}".format(data_source, name, params))
+            logger.info(f"[{data_source}] Starting study: {name}, params {params}")
             try:
                 study(ocean_backend, enrich_backend, **params)
             except Exception as e:
-                logger.error("[{}] Problem executing study {}, {}".format(data_source, name, e))
+                logger.error(f"[{data_source}] Problem executing study {name}, {e}")
                 raise e
 
             # identify studies which creates other indexes. If the study is onion,

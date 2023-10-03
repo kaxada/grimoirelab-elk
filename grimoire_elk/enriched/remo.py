@@ -72,14 +72,11 @@ class ReMoEnrich(Enrich):
 
         item = item['data']
         if 'owner' in item:
-            owner = self.get_sh_identity(item['owner'])
-            yield owner
+            yield self.get_sh_identity(item['owner'])
         if 'user' in item:
-            user = self.get_sh_identity(item['user'])
-            yield user
+            yield self.get_sh_identity(item['user'])
         if 'mentor' in item:
-            mentor = self.get_sh_identity(item['mentor'])
-            yield mentor
+            yield self.get_sh_identity(item['mentor'])
 
     def get_sh_identity(self, item, identity_field=None):
         # "owner": {
@@ -116,7 +113,7 @@ class ReMoEnrich(Enrich):
         elif 'first_name' in item:
             category = 'users'
         else:
-            logger.error("[remo] Can not detect category in item {}".format(item))
+            logger.error(f"[remo] Can not detect category in item {item}")
 
         return category
 
@@ -139,23 +136,15 @@ class ReMoEnrich(Enrich):
         return eitem
 
     def __get_rich_item_common(self, item):
-        # metadata fields to copy
-
-        eitem = {}
-
-        for f in self.RAW_FIELDS_COPY + ["offset"]:
-            if f in item:
-                eitem[f] = item[f]
-            else:
-                eitem[f] = None
-
+        eitem = {
+            f: item[f] if f in item else None
+            for f in self.RAW_FIELDS_COPY + ["offset"]
+        }
         self.add_repository_labels(eitem)
         self.add_metadata_filter_raw(eitem)
         return eitem
 
     def __get_rich_item_activities(self, item):
-        eitem = {}
-
         # The real data
         activity = item['data']
 
@@ -163,12 +152,7 @@ class ReMoEnrich(Enrich):
         copy_fields = ["activity", "activity_description", "external_link",
                        "functional_areas", "initiative", "link", "location",
                        "remo_url", "report_date"]
-        for f in copy_fields:
-            if f in activity:
-                eitem[f] = activity[f]
-            else:
-                eitem[f] = None
-
+        eitem = {f: activity[f] if f in activity else None for f in copy_fields}
         eitem['user_profile_url'] = activity['user']['_url']
         eitem['user'] = activity['user']['first_name'] + " " + activity['user']['last_name']
 
@@ -178,7 +162,7 @@ class ReMoEnrich(Enrich):
 
         # geolocation
         if -90 < int(activity['latitude']) < 90 and \
-           -180 < int(activity['longitude']) < 180:
+               -180 < int(activity['longitude']) < 180:
             eitem['geolocation'] = {
                 "lat": activity['latitude'],
                 "lon": activity['longitude'],
@@ -203,13 +187,9 @@ class ReMoEnrich(Enrich):
         return eitem
 
     def __get_rich_item_users(self, item):
-        eitem = {}
-
-        return eitem
+        return {}
 
     def __get_rich_item_events(self, item):
-        eitem = {}
-
         # The real data
         event = item['data']
 
@@ -218,11 +198,7 @@ class ReMoEnrich(Enrich):
                        "description", "estimated_attendance", "remo_url",
                        "external_link", "region", "timezone",
                        "planning_pad_url", "hashtag"]
-        for f in copy_fields:
-            if f in event:
-                eitem[f] = event[f]
-            else:
-                eitem[f] = None
+        eitem = {f: event[f] if f in event else None for f in copy_fields}
         # Fields which names are translated
         map_fields = {
             "description": "description_analyzed",

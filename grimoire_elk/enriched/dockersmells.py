@@ -81,9 +81,7 @@ class Dockersmells(Enrich):
 
     def get_identities(self, item):
         """ Return the identities from an item """
-        identities = []
-
-        return identities
+        return []
 
     def has_identities(self):
         """ Return whether the enriched items contains identities """
@@ -116,7 +114,7 @@ class Dockersmells(Enrich):
 
         # uuid
         uuid_sha1 = backend.uuid(eitem['file_path'], eitem['smell'])
-        eitem['id'] = "{}_{}".format(eitem['commit_sha'], uuid_sha1)
+        eitem['id'] = f"{eitem['commit_sha']}_{uuid_sha1}"
         eitem.update(self.get_grimoire_fields(eitem["author_date"], "file"))
         self.add_repository_labels(eitem)
         self.add_metadata_filter_raw(eitem)
@@ -148,10 +146,8 @@ class Dockersmells(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[dockersmells] {}/{} missing items".format(
-                         missing, num_items))
+            logger.error(f"[dockersmells] {missing}/{num_items} missing items")
         else:
-            logger.info("[dockersmells] {} items inserted".format(
-                        num_items))
+            logger.info(f"[dockersmells] {num_items} items inserted")
 
         return num_items

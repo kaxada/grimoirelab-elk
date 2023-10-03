@@ -73,7 +73,7 @@ class TestDiscourse(TestBaseBackend):
             self.enrich_backend = self.connectors[self.connector][2](db_sortinghat=DB_SORTINGHAT,
                                                                      db_user=self.db_user,
                                                                      db_password=self.db_password)
-        elif not sortinghat and projects:
+        elif not sortinghat:
             self.enrich_backend = self.connectors[self.connector][2](json_projects_map=FILE_PROJECTS,
                                                                      db_user=self.db_user,
                                                                      db_password=self.db_password)
@@ -93,7 +93,7 @@ class TestDiscourse(TestBaseBackend):
         if sortinghat:
             load_identities(self.ocean_backend, self.enrich_backend)
 
-        raw_count = len([item for item in self.ocean_backend.fetch()])
+        raw_count = len(list(self.ocean_backend.fetch()))
         enrich_count = self.enrich_backend.enrich_items(self.ocean_backend)
         # self._test_csv_mappings(sortinghat)
 
@@ -150,7 +150,7 @@ class TestDiscourse(TestBaseBackend):
         categories_tree = {1: {}, 6: {}, 2: {}, 3: {}}
         enrich_backend.categories_tree = MagicMock(return_value=categories_tree)
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']

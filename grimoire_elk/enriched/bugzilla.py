@@ -101,25 +101,20 @@ class BugzillaEnrich(Enrich):
 
         for rol in self.roles:
             if rol in item['data']:
-                user = self.get_sh_identity(item["data"][rol])
-                yield user
-
+                yield self.get_sh_identity(item["data"][rol])
         if 'activity' in item["data"]:
             for event in item["data"]['activity']:
                 event_user = [{"__text__": event['Who']}]
-                user = self.get_sh_identity(event_user)
-                yield user
-
+                yield self.get_sh_identity(event_user)
         if 'long_desc' in item["data"]:
             for comment in item["data"]['long_desc']:
-                user = self.get_sh_identity(comment['who'])
-                yield user
+                yield self.get_sh_identity(comment['who'])
 
     @metadata
     def get_rich_item(self, item):
 
         if 'bug_id' not in item['data']:
-            logger.warning("[bugzilla] Dropped bug without bug_id {}".format(item))
+            logger.warning(f"[bugzilla] Dropped bug without bug_id {item}")
             return None
 
         eitem = {}
@@ -185,9 +180,9 @@ class BugzillaEnrich(Enrich):
             eitem['comments'] = len(issue['long_desc'])
         eitem['url'] = item['origin'] + "/show_bug.cgi?id=" + issue['bug_id'][0]['__text__']
         eitem['resolution_days'] = \
-            get_time_diff_days(eitem['creation_date'], eitem['delta_ts'])
+                get_time_diff_days(eitem['creation_date'], eitem['delta_ts'])
         eitem['timeopen_days'] = \
-            get_time_diff_days(eitem['creation_date'], datetime_utcnow().replace(tzinfo=None))
+                get_time_diff_days(eitem['creation_date'], datetime_utcnow().replace(tzinfo=None))
 
         if self.sortinghat:
             eitem.update(self.get_item_sh(item, self.roles))

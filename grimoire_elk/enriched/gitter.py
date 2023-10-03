@@ -91,12 +91,11 @@ class GitterEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        identity = self.get_sh_identity(item)
-        yield identity
+        yield self.get_sh_identity(item)
 
     def get_project_repository(self, eitem):
         tokens = eitem['origin'].rsplit("/", 1)
-        return tokens[0] + " " + tokens[1]
+        return f"{tokens[0]} {tokens[1]}"
 
     @metadata
     def get_rich_item(self, item):
@@ -113,11 +112,7 @@ class GitterEnrich(Enrich):
         copy_fields = ["readBy", "issues", "id"]
 
         for f in copy_fields:
-            if f in message:
-                eitem[f] = message[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = message[f] if f in message else None
         eitem.update(self.get_rich_links(item['data']))
 
         message_timestamp = str_to_datetime(eitem['metadata__updated_on'])
@@ -171,10 +166,11 @@ class GitterEnrich(Enrich):
     def extract_mentions(self, mentioned):
         """Enrich users mentioned in the message"""
 
-        rich_mentions = []
-
-        for usr in mentioned:
-            if 'userId' in usr.keys():
-                rich_mentions.append({'mentioned_username': usr['screenName'], 'mentioned_userId': usr['userId']})
-
-        return rich_mentions
+        return [
+            {
+                'mentioned_username': usr['screenName'],
+                'mentioned_userId': usr['userId'],
+            }
+            for usr in mentioned
+            if 'userId' in usr.keys()
+        ]

@@ -81,8 +81,7 @@ class MediaWikiEnrich(Enrich):
         revisions = item['data']['revisions']
 
         for revision in revisions:
-            user = self.get_sh_identity(revision)
-            yield user
+            yield self.get_sh_identity(revision)
 
     def get_field_author(self):
         return 'user'
@@ -94,11 +93,7 @@ class MediaWikiEnrich(Enrich):
 
         revision = item
 
-        identity = {}
-        identity['username'] = None
-        identity['email'] = None
-        identity['name'] = None
-
+        identity = {'username': None, 'email': None, 'name': None}
         if isinstance(item, dict) and 'data' in item:
             if 'revisions' not in item['data']:
                 return identity
@@ -116,12 +111,9 @@ class MediaWikiEnrich(Enrich):
 
         identity = self.get_sh_identity(revision)
         update = str_to_datetime(item[self.get_field_date()])
-        erevision = self.get_item_sh_fields(identity, update)
-
-        return erevision
+        return self.get_item_sh_fields(identity, update)
 
     def get_rich_item_reviews(self, item):
-        erevisions = []
         eitem = {}
 
         # All revisions include basic page info
@@ -129,26 +121,18 @@ class MediaWikiEnrich(Enrich):
 
         # Revisions
         if "revisions" not in item["data"]:
-            return erevisions
-
+            return []
         for rev in item["data"]["revisions"]:
             erevision = {}
             self.copy_raw_fields(self.RAW_FIELDS_COPY, eitem, erevision)
             # Metadata related to the page according to the enrichment specification
             copy_fields_item = ["origin", "metadata__updated_on", "metadata__timestamp", "pageid", "title"]
             for f in copy_fields_item:
-                if f in eitem:
-                    erevision["page_" + f] = eitem[f]
-                else:
-                    erevision["page_" + f] = None
+                erevision[f"page_{f}"] = eitem[f] if f in eitem else None
             # Copy fields from the review
             copy_fields = ["revid", "user", "parentid", "timestamp", "comment"]
             for f in copy_fields:
-                if f in rev:
-                    erevision["revision_" + f] = rev[f]
-                else:
-                    erevision["revision_" + f] = None
-
+                erevision[f"revision_{f}"] = rev[f] if f in rev else None
             if "comment" in rev:
                 erevision["revision_comment"] = rev["comment"][:self.KEYWORD_MAX_LENGTH]
                 erevision["revision_comment_analyzed"] = rev["comment"]
@@ -167,11 +151,13 @@ class MediaWikiEnrich(Enrich):
                         urls = repo.split()
                         # If only one URL is given, then we consider same URL for API and web server
                         if len(urls) == 1:
-                            erevision["url"] = urls[0] + "/" + erevision["page_title"]
+                            erevision["url"] = f"{urls[0]}/" + erevision["page_title"]
                         elif len(urls) == 2:
-                            erevision["url"] = urls[1] + "/" + erevision["page_title"]
+                            erevision["url"] = f"{urls[1]}/" + erevision["page_title"]
                         else:
-                            raise ValueError("Parameter value not supported in projects.json for mediawiki: " + repo)
+                            raise ValueError(
+                                f"Parameter value not supported in projects.json for mediawiki: {repo}"
+                            )
             else:
                 erevision["url"] = erevision["page_origin"] + "/" + erevision["page_title"]
 
@@ -207,10 +193,7 @@ class MediaWikiEnrich(Enrich):
         # data fields to copy
         copy_fields = ["pageid", "title"]
         for f in copy_fields:
-            if f in page:
-                eitem[f] = page[f]
-            else:
-                eitem[f] = None
+            eitem[f] = page[f] if f in page else None
         # Fields which names are translated
         map_fields = {"title": "title_analyzed"}
         for fn in map_fields:
@@ -243,7 +226,9 @@ class MediaWikiEnrich(Enrich):
 
         url = self.elastic.get_bulk_url()
 
-        logger.debug("[mediawiki] Adding items to {} (in {} packs)".format(anonymize_url(url), max_items))
+        logger.debug(
+            f"[mediawiki] Adding items to {anonymize_url(url)} (in {max_items} packs)"
+        )
 
         items = ocean_backend.fetch()
         for item in items:
@@ -255,7 +240,7 @@ class MediaWikiEnrich(Enrich):
                     current = 0
                 data_json = json.dumps(enrich_review)
                 bulk_json += '{"index" : {"_id" : "%s" } }\n' % \
-                    (enrich_review[self.get_field_unique_id()])
+                        (enrich_review[self.get_field_unique_id()])
                 bulk_json += data_json + "\n"  # Bulk document
                 current += 1
 

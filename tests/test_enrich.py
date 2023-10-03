@@ -690,7 +690,7 @@ class TestEnrich(unittest.TestCase):
         es_con = dict(config.items('ElasticSearch'))['url']
 
         tmp_index = "test-add-aliases"
-        tmp_index_url = es_con + "/" + tmp_index
+        tmp_index_url = f"{es_con}/{tmp_index}"
 
         enrich_backend = get_connectors()["git"][2]()
         elastic_enrich = get_elastic(es_con, tmp_index, True, enrich_backend)
@@ -701,20 +701,26 @@ class TestEnrich(unittest.TestCase):
         with self.assertLogs(logger, level='INFO') as cm:
             self._enrich.elastic.add_alias(alias)
 
-        self.assertEqual(cm.output[0],
-                         'INFO:grimoire_elk.elastic:Alias %s created on %s.'
-                         % (alias, anonymize_url(tmp_index_url)))
+        self.assertEqual(
+            cm.output[0],
+            f'INFO:grimoire_elk.elastic:Alias {alias} created on {anonymize_url(tmp_index_url)}.',
+        )
 
-        r = self._enrich.requests.get(self._enrich.elastic.index_url + "/_alias", headers=HEADER_JSON, verify=False)
+        r = self._enrich.requests.get(
+            f"{self._enrich.elastic.index_url}/_alias",
+            headers=HEADER_JSON,
+            verify=False,
+        )
         self.assertIn(alias, r.json()[self._enrich.elastic.index]['aliases'])
 
         # add alias again
         with self.assertLogs(logger, level='DEBUG') as cm:
             self._enrich.elastic.add_alias(alias)
 
-        self.assertEqual(cm.output[0],
-                         'DEBUG:grimoire_elk.elastic:Alias %s already exists on %s.'
-                         % (alias, anonymize_url(tmp_index_url)))
+        self.assertEqual(
+            cm.output[0],
+            f'DEBUG:grimoire_elk.elastic:Alias {alias} already exists on {anonymize_url(tmp_index_url)}.',
+        )
 
         requests.delete(tmp_index_url, verify=False)
 
@@ -838,7 +844,7 @@ class TestEnrich(unittest.TestCase):
     @httpretty.activate
     def test_fetch_authors_min_max_dates(self):
 
-        es_search_url = "{}/_search".format(self._enrich.elastic.index_url)
+        es_search_url = f"{self._enrich.elastic.index_url}/_search"
         _ = setup_http_server(es_search_url)
 
         log_prefix = "[git] Demography"
@@ -873,9 +879,7 @@ class TestEnrich(unittest.TestCase):
         ]
         authors_min_max_data = self._enrich.fetch_authors_min_max_dates(log_prefix, author_field,
                                                                         None, date_field)
-        all_authors = []
-        for author_key in authors_min_max_data:
-            all_authors.append(author_key)
+        all_authors = list(authors_min_max_data)
         self.assertListEqual(all_authors, expected)
 
 

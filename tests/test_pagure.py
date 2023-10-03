@@ -181,7 +181,7 @@ class TestPagure(TestBaseBackend):
         enrich_backend = self.connectors[self.connector][2]()
         enrich_backend.sortinghat = True
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']
@@ -215,7 +215,7 @@ class TestPagure(TestBaseBackend):
         self.assertEqual(result['raw'], 7)
         self.assertEqual(result['enrich'], 26)
 
-        res = requests.get(self.es_con + "/" + self.enrich_index + "/_search", verify=False)
+        res = requests.get(f"{self.es_con}/{self.enrich_index}/_search", verify=False)
         for eitem in res.json()['hits']['hits']:
             self.assertEqual(eitem['_source']['project'], "grimoire")
 

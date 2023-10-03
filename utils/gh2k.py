@@ -81,17 +81,16 @@ def get_params():
 
 
 def get_payload():
-    # 100 max in repos
-    payload = {'per_page': 100,
-               'fork': False,
-               'sort': 'updated',  # does not work in repos listing
-               'direction': 'desc'}
-    return payload
+    return {
+        'per_page': 100,
+        'fork': False,
+        'sort': 'updated',  # does not work in repos listing
+        'direction': 'desc',
+    }
 
 
 def get_headers(token):
-    headers = {'Authorization': 'token ' + token}
-    return headers
+    return {'Authorization': f'token {token}'}
 
 
 def get_owner_repos_url(owner, token):
@@ -99,8 +98,8 @@ def get_owner_repos_url(owner, token):
         It waits if need to have rate limit.
         Also it fixes a djando issue changing - with _
     """
-    url_org = GITHUB_API_URL + "/orgs/" + owner + "/repos"
-    url_user = GITHUB_API_URL + "/users/" + owner + "/repos"
+    url_org = f"{GITHUB_API_URL}/orgs/{owner}/repos"
+    url_user = f"{GITHUB_API_URL}/users/{owner}/repos"
 
     url_owner = url_org  # Use org by default
 
@@ -129,7 +128,7 @@ def get_repositores(owner_url, token, nrepos):
     url = owner_url
 
     while True:
-        logging.debug("Getting repos from: %s" % (url))
+        logging.debug(f"Getting repos from: {url}")
         try:
             r = requests.get(url,
                              params=get_payload(),
@@ -138,7 +137,7 @@ def get_repositores(owner_url, token, nrepos):
             r.raise_for_status()
             all_repos += r.json()
 
-            logging.debug("Rate limit: %s" % (r.headers['X-RateLimit-Remaining']))
+            logging.debug(f"Rate limit: {r.headers['X-RateLimit-Remaining']}")
 
             if 'next' not in r.links:
                 break
@@ -152,7 +151,7 @@ def get_repositores(owner_url, token, nrepos):
     nrepos_recent = [repo for repo in all_repos if not repo['fork']]
     # Sort by updated_at and limit to nrepos
     nrepos_sorted = sorted(nrepos_recent, key=lambda repo: parser.parse(repo['updated_at']), reverse=True)
-    nrepos_sorted = nrepos_sorted[0:nrepos]
+    nrepos_sorted = nrepos_sorted[:nrepos]
     # First the small repositories to feedback the user quickly
     nrepos_sorted = sorted(nrepos_sorted, key=lambda repo: repo['size'])
     for repo in nrepos_sorted:
@@ -167,14 +166,15 @@ def create_redirect_web_page(web_dir, org_name, kibana_url):
     <html>
         <head>
     """
-    html_redirect += """<meta http-equiv="refresh" content="0; URL=%s/app/kibana"""\
-                     % kibana_url
+    html_redirect += f"""<meta http-equiv="refresh" content="0; URL={kibana_url}/app/kibana"""
     html_redirect += """#/dashboard/Overview?_g=(filters:!(('$state':"""
     html_redirect += """(store:globalState),meta:(alias:!n,disabled:!f,index:"""
-    html_redirect += """github_git_enrich,key:project,negate:!f,value:%s),"""\
-                     % org_name
-    html_redirect += """query:(match:(project:(query:%s,type:phrase))))),"""\
-                     % org_name
+    html_redirect += (
+        f"""github_git_enrich,key:project,negate:!f,value:{org_name}),"""
+    )
+    html_redirect += (
+        f"""query:(match:(project:(query:{org_name},type:phrase))))),"""
+    )
     html_redirect += """refreshInterval:(display:Off,pause:!f,value:0),"""
     html_redirect += """time:(from:now-2y,mode:quick,to:now))" />
         </head>
@@ -184,7 +184,7 @@ def create_redirect_web_page(web_dir, org_name, kibana_url):
         with open(path.join(web_dir, org_name), "w") as f:
             f.write(html_redirect)
     except FileNotFoundError as ex:
-        logging.error("Wrong web dir for redirect pages: %s" % (web_dir))
+        logging.error(f"Wrong web dir for redirect pages: {web_dir}")
         logging.error(ex)
 
 
@@ -198,16 +198,18 @@ Bitergia Cauldron Team
 http://bitergia.com
     """
 
-    twitter_txt = "Check Cauldron.io dashboard for %s at %s/dashboards/%s" % (owner, graas_url, owner)
-    twitter_url = "https://twitter.com/intent/tweet?text=" + quote_plus(twitter_txt)
+    twitter_txt = f"Check Cauldron.io dashboard for {owner} at {graas_url}/dashboards/{owner}"
+    twitter_url = (
+        f"https://twitter.com/intent/tweet?text={quote_plus(twitter_txt)}"
+    )
     twitter_url += "&via=bitergia"
 
     if first_repo:
-        logging.info("Sending first email to %s" % (mail))
-        subject = "First repository for %s already in the Cauldron" % (owner)
+        logging.info(f"Sending first email to {mail}")
+        subject = f"First repository for {owner} already in the Cauldron"
     else:
-        logging.info("Sending last email to %s" % (mail))
-        subject = "Your Cauldron %s dashboard is ready!" % (owner)
+        logging.info(f"Sending last email to {mail}")
+        subject = f"Your Cauldron {owner} dashboard is ready!"
 
     if first_repo:
         # body = "%s/dashboards/%s\n\n" % (graas_url, owner)
@@ -251,12 +253,14 @@ Thank you very much,
 
 def publish_twitter(twitter_contact, owner):
     """ Publish in twitter the dashboard """
-    dashboard_url = CAULDRON_DASH_URL + "/%s" % (owner)
-    tweet = "@%s your http://cauldron.io dashboard for #%s at GitHub is ready: %s. Check it out! #oscon" \
-        % (twitter_contact, owner, dashboard_url)
+    dashboard_url = f"{CAULDRON_DASH_URL}/{owner}"
+    tweet = f"@{twitter_contact} your http://cauldron.io dashboard for #{owner} at GitHub is ready: {dashboard_url}. Check it out! #oscon"
     status = quote_plus(tweet)
     oauth = get_oauth()
-    r = requests.post(url="https://api.twitter.com/1.1/statuses/update.json?status=" + status, auth=oauth)
+    r = requests.post(
+        url=f"https://api.twitter.com/1.1/statuses/update.json?status={status}",
+        auth=oauth,
+    )
 
 
 def get_oauth():
@@ -269,18 +273,20 @@ def get_oauth():
     params = ['consumer_key', 'consumer_secret', 'oauth_token', 'oauth_token_secret']
 
     if 'oauth' not in config.sections():
-        raise RuntimeError("Bad oauth file format %s, section missing: %s" % (filepath, 'oauth'))
+        raise RuntimeError(f"Bad oauth file format {filepath}, section missing: oauth")
     oauth_config = dict(config.items('oauth'))
     for param in params:
         if param not in oauth_config:
-            raise RuntimeError("Bad oauth file format %s, not found param: %s" % (filepath, param))
+            raise RuntimeError(
+                f"Bad oauth file format {filepath}, not found param: {param}"
+            )
 
-    oauth = OAuth1(oauth_config['consumer_key'],
-                   client_secret=oauth_config['consumer_secret'],
-                   resource_owner_key=oauth_config['oauth_token'],
-                   resource_owner_secret=oauth_config['oauth_token_secret'])
-
-    return oauth
+    return OAuth1(
+        oauth_config['consumer_key'],
+        client_secret=oauth_config['consumer_secret'],
+        resource_owner_key=oauth_config['oauth_token'],
+        resource_owner_secret=oauth_config['oauth_token_secret'],
+    )
 
 
 if __name__ == '__main__':
@@ -313,22 +319,19 @@ if __name__ == '__main__':
     for repo in repos:
         project = owner  # project = org in GitHub
         url = GITHUB_URL + owner + "/" + repo['name']
-        basic_cmd = "p2o.py -g -e %s --project %s --enrich" % \
-            (args.elastic_url, project)
-        cmd = basic_cmd + " --index %s git %s" % (git_index, url)
+        basic_cmd = f"p2o.py -g -e {args.elastic_url} --project {project} --enrich"
+        cmd = f"{basic_cmd} --index {git_index} git {url}"
         git_cmd = subprocess.call(cmd, shell=True)
         if git_cmd != 0:
-            logging.error("Problems with command: %s" % cmd)
-        cmd = basic_cmd + " --index %s github --owner %s --repository %s -t %s --sleep-for-rate" % \
-            (issues_index, owner, repo['name'], args.token)
+            logging.error(f"Problems with command: {cmd}")
+        cmd = f"{basic_cmd} --index {issues_index} github --owner {owner} --repository {repo['name']} -t {args.token} --sleep-for-rate"
         issues_cmd = subprocess.call(cmd, shell=True)
         if issues_cmd != 0:
-            logging.error("Problems with command: %s" % cmd)
-        else:
-            if first_repo:
-                if args.contact:
-                    notify_contact(args.contact, owner, args.graas_url, repos, first_repo)
-                first_repo = False
+            logging.error(f"Problems with command: {cmd}")
+        elif first_repo:
+            if args.contact:
+                notify_contact(args.contact, owner, args.graas_url, repos, first_repo)
+            first_repo = False
 
     total_time_min = (datetime.now() - task_init).total_seconds() / 60
 
@@ -338,5 +341,5 @@ if __name__ == '__main__':
     if args.contact:
         notify_contact(args.contact, owner, args.graas_url, repos)
     if args.twitter:
-        logging.debug("Twitter user to be notified: %s" % (args.twitter))
+        logging.debug(f"Twitter user to be notified: {args.twitter}")
         publish_twitter(args.twitter, owner)

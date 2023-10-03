@@ -78,7 +78,7 @@ def get_repository_filter(perceval_backend, perceval_backend_name, term=False):
             # Filters are always a dict
             filter_ = json.loads(filter_)
 
-    if value in ['', GITHUB + '/', 'https://meetup.com/']:
+    if value in ['', f'{GITHUB}/', 'https://meetup.com/']:
         # Support for getting all items from a multiorigin index
         # In GitHub we receive GITHUB + '/', the site url without org and repo
         # In Meetup we receive https://meetup.com/ as the tag
@@ -117,9 +117,7 @@ def anonymize_url(url):
 
     :param url: target url
     """
-    anonymized = re.sub('://.*@', '://', url)
-
-    return anonymized
+    return re.sub('://.*@', '://', url)
 
 
 def get_time_diff_days(start, end):
@@ -216,17 +214,16 @@ def get_last_enrich(backend_cmd, enrich_backend, filter_raw=None):
                 last_enrich = get_min_last_enrich(enrich_backend.from_date, last_enrich_filtered)
 
         elif offset is not None:
-            if offset != 0:
-                last_enrich = offset
-            else:
-                last_enrich = enrich_backend.get_last_offset_from_es(filters_)
-
+            last_enrich = (
+                offset
+                if offset != 0
+                else enrich_backend.get_last_offset_from_es(filters_)
+            )
+        elif not enrich_backend.from_date:
+            last_enrich = None
         else:
-            if not enrich_backend.from_date:
-                last_enrich = None
-            else:
-                last_enrich_filtered = enrich_backend.get_last_update_from_es(filters_)
-                last_enrich = get_min_last_enrich(enrich_backend.from_date, last_enrich_filtered)
+            last_enrich_filtered = enrich_backend.get_last_update_from_es(filters_)
+            last_enrich = get_min_last_enrich(enrich_backend.from_date, last_enrich_filtered)
     else:
         last_enrich = enrich_backend.get_last_update_from_es()
 
@@ -234,18 +231,17 @@ def get_last_enrich(backend_cmd, enrich_backend, filter_raw=None):
 
 
 def get_min_last_enrich(last_enrich, last_enrich_filtered):
-    if last_enrich_filtered:
-        min_enrich = min(last_enrich, last_enrich_filtered.replace(tzinfo=None))
-    else:
-        min_enrich = None
-
-    return min_enrich
+    return (
+        min(last_enrich, last_enrich_filtered.replace(tzinfo=None))
+        if last_enrich_filtered
+        else None
+    )
 
 
 def get_diff_current_date(days=0, hours=0, minutes=0):
-    before_date = datetime_utcnow() - datetime.timedelta(days=days, hours=hours, minutes=minutes)
-
-    return before_date
+    return datetime_utcnow() - datetime.timedelta(
+        days=days, hours=hours, minutes=minutes
+    )
 
 
 def fix_field_date(date_value):
@@ -254,7 +250,7 @@ def fix_field_date(date_value):
     field_date = str_to_datetime(date_value)
 
     try:
-        _ = int(field_date.strftime("%z")[0:3])
+        _ = int(field_date.strftime("%z")[:3])
     except ValueError:
         field_date = field_date.replace(tzinfo=None)
 

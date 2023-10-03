@@ -92,10 +92,11 @@ class GerritEnrich(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_demography)
-        self.studies.append(self.enrich_demography_contribution)
-        self.studies.append(self.enrich_onion)
+        self.studies = [
+            self.enrich_demography,
+            self.enrich_demography_contribution,
+            self.enrich_onion,
+        ]
 
     roles = ["author", "by", "changeset_author", "reviewer", "uploader"]
 
@@ -136,34 +137,27 @@ class GerritEnrich(Enrich):
 
         # Changeset owner
         user = item.get('owner', None)
-        identity = self.get_sh_identity(user)
-        yield identity
-
+        yield self.get_sh_identity(user)
         # Patchset uploader and author
         if 'patchSets' in item:
             for patchset in item['patchSets']:
                 if 'uploader' in patchset:
                     user = patchset.get('uploader', None)
-                    identity = self.get_sh_identity(user)
-                    yield identity
+                    yield self.get_sh_identity(user)
                 if 'author' in patchset:
                     user = patchset.get('author', None)
-                    identity = self.get_sh_identity(user)
-                    yield identity
+                    yield self.get_sh_identity(user)
                 if 'approvals' in patchset:
                     # Approvals by
                     for approval in patchset['approvals']:
                         if 'by' in approval:
-                            identity = self.get_sh_identity(approval.get('by', None))
-                            yield identity
-
+                            yield self.get_sh_identity(approval.get('by', None))
         # Comments reviewers
         if 'comments' in item:
             for comment in item['comments']:
                 if 'reviewer' in comment:
                     user = comment.get('reviewer', None)
-                    identity = self.get_sh_identity(user)
-                    yield identity
+                    yield self.get_sh_identity(user)
 
     def get_item_id(self, eitem):
         """ Return the item_id linked to this enriched eitem """
@@ -219,7 +213,7 @@ class GerritEnrich(Enrich):
             eitem[map_fields[fn]] = review[fn]
 
         # Add id info to allow to coexistence of items of different types in the same index
-        eitem['id'] = '{}_changeset_{}'.format(eitem['uuid'], eitem['changeset_number'])
+        eitem['id'] = f"{eitem['uuid']}_changeset_{eitem['changeset_number']}"
         eitem["summary_analyzed"] = eitem["summary"]
         eitem["summary"] = eitem["summary"][:self.KEYWORD_MAX_LENGTH]
         eitem["name"] = None
@@ -256,10 +250,10 @@ class GerritEnrich(Enrich):
         seconds_day = float(60 * 60 * 24)
         if eitem['status'] in ['MERGED', 'ABANDONED']:
             timeopen = \
-                (last_updated_date - created_on_date).total_seconds() / seconds_day
+                    (last_updated_date - created_on_date).total_seconds() / seconds_day
         else:
             timeopen = \
-                (datetime_utcnow() - created_on_date).total_seconds() / seconds_day
+                    (datetime_utcnow() - created_on_date).total_seconds() / seconds_day
         eitem["timeopen"] = '%.2f' % timeopen
 
         if self.sortinghat:
@@ -288,11 +282,7 @@ class GerritEnrich(Enrich):
         ecomments = []
 
         for comment in comments:
-            ecomment = {}
-
-            for f in self.RAW_FIELDS_COPY:
-                ecomment[f] = eitem[f]
-
+            ecomment = {f: eitem[f] for f in self.RAW_FIELDS_COPY}
             # Copy data from the enriched review
             ecomment['wip'] = eitem['wip']
             ecomment['open'] = eitem['open']
@@ -319,7 +309,7 @@ class GerritEnrich(Enrich):
 
             # Add id info to allow to coexistence of items of different types in the same index
             ecomment['type'] = COMMENT_TYPE
-            ecomment['id'] = '{}_comment_{}'.format(eitem['id'], created.timestamp())
+            ecomment['id'] = f"{eitem['id']}_comment_{created.timestamp()}"
 
             if self.sortinghat:
                 if 'reviewer' in comment:
@@ -360,11 +350,7 @@ class GerritEnrich(Enrich):
         eitems = []
 
         for patchset in patchsets:
-            epatchset = {}
-
-            for f in self.RAW_FIELDS_COPY:
-                epatchset[f] = eitem[f]
-
+            epatchset = {f: eitem[f] for f in self.RAW_FIELDS_COPY}
             # Copy data from the enriched review
             epatchset['wip'] = eitem['wip']
             epatchset['open'] = eitem['open']
@@ -412,7 +398,7 @@ class GerritEnrich(Enrich):
 
             # Add id info to allow to coexistence of items of different types in the same index
             epatchset['type'] = PATCHSET_TYPE
-            epatchset['id'] = '{}_patchset_{}'.format(eitem['id'], epatchset['patchset_number'])
+            epatchset['id'] = f"{eitem['id']}_patchset_{epatchset['patchset_number']}"
 
             if self.sortinghat:
                 epatchset.update(self.get_item_sh(patchset, ['author', 'uploader'], 'createdOn'))
@@ -434,9 +420,7 @@ class GerritEnrich(Enrich):
 
             eitems.append(epatchset)
 
-            # Add approvals as enriched items
-            approvals = patchset.get('approvals', [])
-            if approvals:
+            if approvals := patchset.get('approvals', []):
                 epatcheset_approvals = self.get_rich_item_patchset_approvals(approvals, epatchset)
                 eitems.extend(epatcheset_approvals)
 
@@ -446,11 +430,7 @@ class GerritEnrich(Enrich):
         eapprovals = []
 
         for approval in approvals:
-            eapproval = {}
-
-            for f in self.RAW_FIELDS_COPY:
-                eapproval[f] = epatchset[f]
-
+            eapproval = {f: epatchset[f] for f in self.RAW_FIELDS_COPY}
             # Copy data from the enriched patchset
             eapproval['wip'] = epatchset['wip']
             eapproval['open'] = epatchset['open']
@@ -487,7 +467,7 @@ class GerritEnrich(Enrich):
                 eapproval['approval_description_analyzed'] = eapproval['approval_description']
 
             # Add id info to allow to coexistence of items of different types in the same index
-            eapproval['id'] = '{}_approval_{}'.format(epatchset['id'], created.timestamp())
+            eapproval['id'] = f"{epatchset['id']}_approval_{created.timestamp()}"
             eapproval['type'] = APPROVAL_TYPE
 
             if self.sortinghat:
@@ -527,17 +507,29 @@ class GerritEnrich(Enrich):
     def add_changeset_author(self, source_eitem, target_eitem, rol='changeset_author'):
         """Copy SH changeset author info in `source_eitem` to `target_eitem`"""
 
-        target_eitem['changeset_author_id'] = source_eitem.get(rol + '_id', None)
-        target_eitem['changeset_author_uuid'] = source_eitem.get(rol + '_uuid', None)
-        target_eitem['changeset_author_name'] = source_eitem.get(rol + '_name', None)
-        target_eitem['changeset_author_user_name'] = source_eitem.get(rol + '_user_name', None)
-        target_eitem['changeset_author_domain'] = source_eitem.get(rol + '_domain', None)
-        target_eitem['changeset_author_gender'] = source_eitem.get(rol + '_gender', None)
-        target_eitem['changeset_author_gender_acc'] = source_eitem.get(rol + '_gender_acc', None)
-        target_eitem['changeset_author_org_name'] = source_eitem.get(rol + '_org_name', None)
-        target_eitem['changeset_author_bot'] = source_eitem.get(rol + '_bot', None)
+        target_eitem['changeset_author_id'] = source_eitem.get(f'{rol}_id', None)
+        target_eitem['changeset_author_uuid'] = source_eitem.get(f'{rol}_uuid', None)
+        target_eitem['changeset_author_name'] = source_eitem.get(f'{rol}_name', None)
+        target_eitem['changeset_author_user_name'] = source_eitem.get(
+            f'{rol}_user_name', None
+        )
+        target_eitem['changeset_author_domain'] = source_eitem.get(
+            f'{rol}_domain', None
+        )
+        target_eitem['changeset_author_gender'] = source_eitem.get(
+            f'{rol}_gender', None
+        )
+        target_eitem['changeset_author_gender_acc'] = source_eitem.get(
+            f'{rol}_gender_acc', None
+        )
+        target_eitem['changeset_author_org_name'] = source_eitem.get(
+            f'{rol}_org_name', None
+        )
+        target_eitem['changeset_author_bot'] = source_eitem.get(f'{rol}_bot', None)
 
-        target_eitem['changeset_author_multi_org_names'] = source_eitem.get(rol + '_multi_org_names', [])
+        target_eitem['changeset_author_multi_org_names'] = source_eitem.get(
+            f'{rol}_multi_org_names', []
+        )
 
     def get_field_unique_id(self):
         return "id"
@@ -678,13 +670,11 @@ class GerritEnrich(Enrich):
 
             items_to_enrich.append(eitem)
 
-            comments = item['data'].get('comments', [])
-            if comments:
+            if comments := item['data'].get('comments', []):
                 rich_item_comments = self.get_rich_item_comments(comments, eitem)
                 items_to_enrich.extend(rich_item_comments)
 
-            patchsets = item['data'].get('patchSets', [])
-            if patchsets:
+            if patchsets := item['data'].get('patchSets', []):
                 rich_item_patchsets = self.get_rich_item_patchsets(patchsets, eitem)
                 items_to_enrich.extend(rich_item_patchsets)
 
@@ -701,9 +691,9 @@ class GerritEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[gerrit] {}/{} missing items".format(missing, num_items))
+            logger.error(f"[gerrit] {missing}/{num_items} missing items")
         else:
-            logger.info("[gerrit] {} items inserted".format(num_items))
+            logger.info(f"[gerrit] {num_items} items inserted")
 
         return num_items
 

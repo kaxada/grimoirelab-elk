@@ -64,8 +64,6 @@ class StackExchangeEnrich(Enrich):
         return "owner"
 
     def get_sh_identity(self, item, identity_field=None):
-        identity = {}
-
         user = item
         if isinstance(item, dict) and 'data' in item:
             user = item['data'][identity_field]
@@ -76,11 +74,11 @@ class StackExchangeEnrich(Enrich):
         if 'display_name' not in user:
             user['display_name'] = ''
 
-        identity['username'] = user['display_name']
-        identity['email'] = None
-        identity['name'] = user['display_name']
-
-        return identity
+        return {
+            'username': user['display_name'],
+            'email': None,
+            'name': user['display_name'],
+        }
 
     def get_identities(self, item):
         """ Return the identities from an item """
@@ -89,12 +87,10 @@ class StackExchangeEnrich(Enrich):
 
         for identity in ['owner']:
             if identity in item and item[identity]:
-                user = self.get_sh_identity(item[identity])
-                yield user
+                yield self.get_sh_identity(item[identity])
             if 'answers' in item:
                 for answer in item['answers']:
-                    user = self.get_sh_identity(answer[identity])
-                    yield user
+                    yield self.get_sh_identity(answer[identity])
 
     @metadata
     def get_rich_item(self, item, kind='question', question_tags=None):
@@ -115,7 +111,9 @@ class StackExchangeEnrich(Enrich):
             eitem["type"] = 'question'
             eitem["author"] = None
             if 'owner' in question and question['owner']['user_type'] == "does_not_exist":
-                logger.warning("[stackexchange] question without owner: {}".format(question['question_id']))
+                logger.warning(
+                    f"[stackexchange] question without owner: {question['question_id']}"
+                )
             else:
                 eitem["author"] = question['owner']['display_name']
                 eitem["author_link"] = None
@@ -128,11 +126,7 @@ class StackExchangeEnrich(Enrich):
             # data fields to copy
             copy_fields = common_fields + ['answer_count']
             for f in copy_fields:
-                if f in question:
-                    eitem[f] = question[f]
-                else:
-                    eitem[f] = None
-
+                eitem[f] = question[f] if f in question else None
             eitem["question_tags"] = question['tags']
             # eitem["question_tags_custom_analyzed"] = question['tags']
 
@@ -145,13 +139,16 @@ class StackExchangeEnrich(Enrich):
             eitem['question_has_accepted_answer'] = 0
             eitem['question_accepted_answer_id'] = None
 
-            if question['answer_count'] >= 1 and 'answers' not in question:
-                logger.warning("[stackexchange] Missing answers for question {}".format(question['question_id']))
-            elif question['answer_count'] >= 1 and 'answers' in question:
-                answers_id = [p['answer_id'] for p in question['answers']
-                              if 'is_accepted' in p and p['is_accepted']]
-                eitem['question_accepted_answer_id'] = answers_id[0] if answers_id else None
-                eitem['question_has_accepted_answer'] = 1 if eitem['question_accepted_answer_id'] else 0
+            if question['answer_count'] >= 1:
+                if 'answers' not in question:
+                    logger.warning(
+                        f"[stackexchange] Missing answers for question {question['question_id']}"
+                    )
+                else:
+                    answers_id = [p['answer_id'] for p in question['answers']
+                                  if 'is_accepted' in p and p['is_accepted']]
+                    eitem['question_accepted_answer_id'] = answers_id[0] if answers_id else None
+                    eitem['question_has_accepted_answer'] = 1 if eitem['question_accepted_answer_id'] else 0
 
             creation_date = unixtime_to_datetime(question["creation_date"]).isoformat()
             eitem['creation_date'] = creation_date
@@ -173,7 +170,9 @@ class StackExchangeEnrich(Enrich):
             eitem["item_id"] = answer['answer_id']
             eitem["author"] = None
             if 'owner' in answer and answer['owner']['user_type'] == "does_not_exist":
-                logger.warning("[stackexchange] answer without owner: {}".format(answer['question_id']))
+                logger.warning(
+                    f"[stackexchange] answer without owner: {answer['question_id']}"
+                )
             else:
                 eitem["author"] = answer['owner']['display_name']
                 eitem["author_link"] = None
@@ -186,11 +185,7 @@ class StackExchangeEnrich(Enrich):
             # data fields to copy
             copy_fields = common_fields + ["origin", "tag", "creation_date", "is_accepted", "answer_id"]
             for f in copy_fields:
-                if f in answer:
-                    eitem[f] = answer[f]
-                else:
-                    eitem[f] = None
-
+                eitem[f] = answer[f] if f in answer else None
             eitem['is_accepted_answer'] = 1 if answer['is_accepted'] else 0
             eitem['answer_status'] = "accepted" if answer['is_accepted'] else "not_accepted"
 
@@ -260,8 +255,8 @@ class StackExchangeEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[stackexchange] {}/{} missing items".format(missing, num_items))
+            logger.error(f"[stackexchange] {missing}/{num_items} missing items")
         else:
-            logger.info("[stackexchange] {} items inserted".format(num_items))
+            logger.info(f"[stackexchange] {num_items} items inserted")
 
         return num_items

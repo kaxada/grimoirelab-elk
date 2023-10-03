@@ -96,14 +96,14 @@ class GitEnrich(Enrich):
         super().__init__(db_sortinghat, db_projects_map, json_projects_map,
                          db_user, db_password, db_host)
 
-        self.studies = []
-        self.studies.append(self.enrich_demography)
-        self.studies.append(self.enrich_areas_of_code)
-        self.studies.append(self.enrich_onion)
-        self.studies.append(self.enrich_git_branches)
-        self.studies.append(self.enrich_forecast_activity)
-        self.studies.append(self.enrich_extra_data)
-
+        self.studies = [
+            self.enrich_demography,
+            self.enrich_areas_of_code,
+            self.enrich_onion,
+            self.enrich_git_branches,
+            self.enrich_forecast_activity,
+            self.enrich_extra_data,
+        ]
         self.rate_limit = None
         self.rate_limit_reset_ts = None
         self.min_rate_to_sleep = 100  # if pending rate < 100 sleep
@@ -115,25 +115,19 @@ class GitEnrich(Enrich):
     def get_field_unique_id(self):
         # In pair_programming the uuid is not unique: a commit can create
         # several commits
-        if self.pair_programming:
-            return "git_uuid"
-        return "uuid"
+        return "git_uuid" if self.pair_programming else "uuid"
 
     def get_field_date(self):
         """ Field with the date in the JSON enriched items """
         return "grimoire_creation_date"
 
     def __get_authors(self, authors_str):
-        # Extract the authors from a multiauthor
-
-        m = self.AUTHOR_P2P_REGEX.match(authors_str)
-        if m:
+        if m := self.AUTHOR_P2P_REGEX.match(authors_str):
             authors = m.group('first_authors').split(",")
             authors = [author.strip() for author in authors]
             authors += [m.group('last_author')]
 
-        n = self.AUTHOR_P2P_NEW_REGEX.findall(authors_str)
-        if n:
+        if n := self.AUTHOR_P2P_NEW_REGEX.findall(authors_str):
             for i in n:
                 authors += [i[0]]
         # Remove duplicates
@@ -151,32 +145,24 @@ class GitEnrich(Enrich):
             if (m or n) and self.pair_programming:
                 authors = self.__get_authors(item['data']["Author"])
                 for author in authors:
-                    user = self.get_sh_identity(author)
-                    yield user
+                    yield self.get_sh_identity(author)
             else:
-                user = self.get_sh_identity(item['data']["Author"])
-                yield user
+                yield self.get_sh_identity(item['data']["Author"])
         if item['data']['Commit']:
             m = self.AUTHOR_P2P_REGEX.match(item['data']["Commit"])
             n = self.AUTHOR_P2P_NEW_REGEX.match(item['data']["Author"])
             if (m or n) and self.pair_programming:
                 committers = self.__get_authors(item['data']['Commit'])
                 for committer in committers:
-                    user = self.get_sh_identity(committer)
-                    yield user
+                    yield self.get_sh_identity(committer)
             else:
-                user = self.get_sh_identity(item['data']['Commit'])
-                yield user
+                yield self.get_sh_identity(item['data']['Commit'])
         if 'Signed-off-by' in item['data'] and self.pair_programming:
             signers = item['data']["Signed-off-by"]
             for signer in signers:
-                user = self.get_sh_identity(signer)
-                yield user
+                yield self.get_sh_identity(signer)
 
     def get_sh_identity(self, item, identity_field=None):
-        # John Smith <john.smith@bitergia.com>
-        identity = {}
-
         git_user = item  # by default a specific user dict is expected
         if isinstance(item, dict) and 'data' in item:
             git_user = item['data'][identity_field]
@@ -184,14 +170,8 @@ class GitEnrich(Enrich):
         fields = git_user.split("<")
         name = fields[0]
         name = name.strip()  # Remove space between user and email
-        email = None
-        if len(fields) > 1:
-            email = git_user.split("<")[1][:-1]
-        identity['username'] = None
-        identity['email'] = email
-        identity['name'] = name
-
-        return identity
+        email = git_user.split("<")[1][:-1] if len(fields) > 1 else None
+        return {'username': None, 'email': email, 'name': name}
 
     def get_project_repository(self, eitem):
         return eitem['origin']
@@ -212,25 +192,18 @@ class GitEnrich(Enrich):
         # data fields to copy
         copy_fields = ["message"]
         for f in copy_fields:
-            if f in commit:
-                eitem[f] = commit[f]
-            else:
-                eitem[f] = None
+            eitem[f] = commit[f] if f in commit else None
         # Fields which names are translated
         map_fields = {"commit": "hash", "message": "message_analyzed"}
         for fn in map_fields:
-            if fn in commit:
-                eitem[map_fields[fn]] = commit[fn]
-            else:
-                eitem[map_fields[fn]] = None
-
+            eitem[map_fields[fn]] = commit[fn] if fn in commit else None
         if 'message' in commit:
             eitem['message'] = commit['message'][:self.KEYWORD_MAX_LENGTH]
 
         if 'refs' in commit:
             eitem["commit_tags"] = list(filter(lambda r: "tag: " in r, commit['refs']))
 
-        eitem['hash_short'] = eitem['hash'][0:6]
+        eitem['hash_short'] = eitem['hash'][:6]
         # Enrich dates
         author_date = str_to_datetime(commit["AuthorDate"])
         commit_date = str_to_datetime(commit["CommitDate"])
@@ -256,7 +229,7 @@ class GitEnrich(Enrich):
         eitem["utc_commit_date_weekday"] = utc_commit_date.replace(tzinfo=None).isoweekday()
         eitem["utc_commit_date_hour"] = utc_commit_date.replace(tzinfo=None).hour
 
-        eitem["tz"] = int(author_date.strftime("%z")[0:3])
+        eitem["tz"] = int(author_date.strftime("%z")[:3])
         eitem["branches"] = []
 
         # Compute time to commit
@@ -342,10 +315,11 @@ class GitEnrich(Enrich):
         field_date = str_to_datetime(item[attribute])
 
         try:
-            _ = int(field_date.strftime("%z")[0:3])
+            _ = int(field_date.strftime("%z")[:3])
         except ValueError:
-            logger.warning("[git] {} in commit {} has a wrong format".format(
-                           attribute, item['commit']))
+            logger.warning(
+                f"[git] {attribute} in commit {item['commit']} has a wrong format"
+            )
             item[attribute] = field_date.replace(tzinfo=None).isoformat()
 
     def __add_commit_meta_fields(self, eitem, commit):
@@ -383,7 +357,7 @@ class GitEnrich(Enrich):
             else:
                 sh_fields = self.get_item_no_sh_fields(identity, rol=meta_field)
 
-            uuid = sh_fields[meta_field + '_uuid']
+            uuid = sh_fields[f'{meta_field}_uuid']
             self.add_meta_fields(eitem, meta_eitem, sh_fields, meta_field, uuid, self.meta_fields_suffixes,
                                  self.meta_non_authored_prefix)
         eitem.update(meta_eitem)
@@ -473,7 +447,9 @@ class GitEnrich(Enrich):
 
         url = self.elastic.get_bulk_url()
 
-        logger.debug("[git] Adding items to {} (in {} packs)".format(anonymize_url(url), max_items))
+        logger.debug(
+            f"[git] Adding items to {anonymize_url(url)} (in {max_items} packs)"
+        )
         items = ocean_backend.fetch()
 
         for item in items:
@@ -483,8 +459,9 @@ class GitEnrich(Enrich):
                 m = self.AUTHOR_P2P_REGEX.match(item['data']['Author'])
                 n = self.AUTHOR_P2P_NEW_REGEX.match(item['data']['Author'])
                 if m or n:
-                    logger.debug("[git] Multiauthor detected. Creating one commit "
-                                 "per author: {}".format(item['data']['Author']))
+                    logger.debug(
+                        f"[git] Multiauthor detected. Creating one commit per author: {item['data']['Author']}"
+                    )
                     item['data']['authors'] = self.__get_authors(item['data']['Author'])
                     item['data']['Author'] = item['data']['authors'][0]
                     item['data']['is_git_commit_multi_author'] = 1
@@ -568,8 +545,8 @@ class GitEnrich(Enrich):
             return total
 
         if self.pair_programming:
-            logger.info("[git] Signed-off commits generated: {}".format(total_signed_off))
-            logger.info("[git] Multi author commits generated: {}".format(total_multi_author))
+            logger.info(f"[git] Signed-off commits generated: {total_signed_off}")
+            logger.info(f"[git] Multi author commits generated: {total_multi_author}")
 
         return total
 
@@ -585,7 +562,9 @@ class GitEnrich(Enrich):
 
         log_prefix = "[git] study areas_of_code"
 
-        logger.info("{} Starting study - Input: {} Output: {}".format(log_prefix, in_index, out_index))
+        logger.info(
+            f"{log_prefix} Starting study - Input: {in_index} Output: {out_index}"
+        )
 
         # Creating connections
         es_in = Elasticsearch([ocean_backend.elastic.url], retry_on_timeout=True, timeout=100,
@@ -599,11 +578,11 @@ class GitEnrich(Enrich):
 
         exists_index = out_conn.exists()
         if no_incremental or not exists_index:
-            logger.info("{} Creating out ES index".format(log_prefix))
+            logger.info(f"{log_prefix} Creating out ES index")
             # Initialize out index
 
             if (self.elastic.major == '7' and self.elastic.distribution == 'elasticsearch') or \
-               (self.elastic.major == '1' and self.elastic.distribution == 'opensearch'):
+                   (self.elastic.major == '1' and self.elastic.distribution == 'opensearch'):
                 filename = pkg_resources.resource_filename('grimoire_elk', 'enriched/mappings/git_aoc_es7.json')
             else:
                 filename = pkg_resources.resource_filename('grimoire_elk', 'enriched/mappings/git_aoc.json')
@@ -611,14 +590,13 @@ class GitEnrich(Enrich):
 
         repos = []
         for source in self.json_projects.values():
-            items = source.get('git')
-            if items:
+            if items := source.get('git'):
                 repos.extend(items)
 
         for repo in repos:
             anonymize_repo = anonymize_url(repo)
             repo_name = anonymize_repo.split()[0]
-            logger.info("{} Processing repo: {}".format(log_prefix, repo_name))
+            logger.info(f"{log_prefix} Processing repo: {repo_name}")
             in_conn.update_repo(repo_name)
             out_conn.update_repo(repo_name)
             areas_of_code(git_enrich=enrich_backend, in_conn=in_conn, out_conn=out_conn)
@@ -630,13 +608,13 @@ class GitEnrich(Enrich):
         # Create alias if output index exists and alias does not
         if out_conn.exists():
             if not out_conn.exists_alias(alias) \
-                    and not enrich_backend.elastic.alias_in_use(alias):
-                logger.info("{} creating alias: {}".format(log_prefix, alias))
+                        and not enrich_backend.elastic.alias_in_use(alias):
+                logger.info(f"{log_prefix} creating alias: {alias}")
                 out_conn.create_alias(alias)
             else:
-                logger.warning("{} alias already exists: {}.".format(log_prefix, alias))
+                logger.warning(f"{log_prefix} alias already exists: {alias}.")
 
-        logger.info("{} end".format(log_prefix))
+        logger.info(f"{log_prefix} end")
 
     def get_unique_hashes_aoc(self, es_aoc, index_aoc, repository):
         """Retrieve the unique commit hashes in the AOC index
@@ -733,13 +711,13 @@ class GitEnrich(Enrich):
             'value': [repository]
         }
 
-        raw_hashes = set([item['data']['commit']
-                          for item in ocean_backend.fetch(ignore_incremental=True, _filter=fltr)])
+        raw_hashes = {
+            item['data']['commit']
+            for item in ocean_backend.fetch(ignore_incremental=True, _filter=fltr)
+        }
         aoc_hashes = set(self.get_unique_hashes_aoc(es_aoc, index_aoc, repository))
 
-        hashes_to_delete = list(aoc_hashes.difference(raw_hashes))
-
-        return hashes_to_delete
+        return list(aoc_hashes.difference(raw_hashes))
 
     def update_items_aoc(self, ocean_backend, es_aoc, index_aoc, repository):
         """Update the documents stored in the AOC index by deleting those ones corresponding
@@ -750,7 +728,7 @@ class GitEnrich(Enrich):
         :param index_aoc: the AOC index
         :param repository: the target repository
         """
-        aoc_index_url = self.elastic_url + '/' + index_aoc
+        aoc_index_url = f'{self.elastic_url}/{index_aoc}'
         hashes_to_delete = self.get_diff_commits_raw_aoc(ocean_backend, es_aoc, index_aoc, repository)
         to_process = []
         for _hash in hashes_to_delete:
@@ -768,8 +746,9 @@ class GitEnrich(Enrich):
             # delete documents from the AOC index
             self.remove_commits(to_process, aoc_index_url, 'hash', repository)
 
-        logger.debug("[git] study areas_of_code {} commits deleted from {} with origin {}.".format(
-            len(hashes_to_delete), anonymize_url(aoc_index_url), repository))
+        logger.debug(
+            f"[git] study areas_of_code {len(hashes_to_delete)} commits deleted from {anonymize_url(aoc_index_url)} with origin {repository}."
+        )
 
     def enrich_onion(self, ocean_backend, enrich_backend, alias,
                      no_incremental=False,
@@ -806,31 +785,35 @@ class GitEnrich(Enrich):
         current_hashes = []
         try:
             git_repo = GitRepository(self.perceval_backend.uri, self.perceval_backend.gitpath)
-            current_hashes = [commit for commit in git_repo.rev_list()]
+            current_hashes = list(git_repo.rev_list())
         except EmptyRepositoryError:
-            logger.warning("No commits retrieved from {}, repo is empty".format(repo_origin))
+            logger.warning(f"No commits retrieved from {repo_origin}, repo is empty")
         except RepositoryError:
-            logger.warning("No commits retrieved from {}, repo doesn't exist locally".format(repo_origin))
+            logger.warning(
+                f"No commits retrieved from {repo_origin}, repo doesn't exist locally"
+            )
         except Exception as e:
-            logger.error("[git] No commits retrieved from {}, git rev-list command failed: {}".format(repo_origin, e))
+            logger.error(
+                f"[git] No commits retrieved from {repo_origin}, git rev-list command failed: {e}"
+            )
 
         if not current_hashes:
             return current_hashes
 
         current_hashes = set(current_hashes)
-        raw_hashes = set([item['data']['commit']
-                          for item in ocean_backend.fetch(ignore_incremental=True, _filter=fltr)])
+        raw_hashes = {
+            item['data']['commit']
+            for item in ocean_backend.fetch(ignore_incremental=True, _filter=fltr)
+        }
 
-        hashes_to_delete = list(raw_hashes.difference(current_hashes))
-
-        return hashes_to_delete
+        return list(raw_hashes.difference(current_hashes))
 
     def update_items(self, ocean_backend, enrich_backend):
         """Retrieve the commits not present in the original repository and delete
         the corresponding documents from the raw and enriched indexes"""
 
         repo_origin = anonymize_url(self.perceval_backend.origin)
-        logger.debug("[git] update-items Checking commits for {}.".format(repo_origin))
+        logger.debug(f"[git] update-items Checking commits for {repo_origin}.")
         hashes_to_delete = self.get_diff_commits_origin_raw(ocean_backend)
 
         to_process = []
@@ -853,12 +836,12 @@ class GitEnrich(Enrich):
             # delete documents from the enriched index
             self.remove_commits(to_process, enrich_backend.elastic.index_url, 'hash', repo_origin)
 
-        logger.debug("[git] update-items {} commits deleted from {} with origin {}.".format(
-                     len(hashes_to_delete), anonymize_url(ocean_backend.elastic.index_url),
-                     repo_origin))
-        logger.debug("[git] update-items {} commits deleted from {} with origin {}.".format(
-                     len(hashes_to_delete), anonymize_url(enrich_backend.elastic.index_url),
-                     repo_origin))
+        logger.debug(
+            f"[git] update-items {len(hashes_to_delete)} commits deleted from {anonymize_url(ocean_backend.elastic.index_url)} with origin {repo_origin}."
+        )
+        logger.debug(
+            f"[git] update-items {len(hashes_to_delete)} commits deleted from {anonymize_url(enrich_backend.elastic.index_url)} with origin {repo_origin}."
+        )
 
     def remove_commits(self, items, index, attr, origin, origin_attr='origin'):
         """Delete documents that correspond to commits deleted in the Git repository
@@ -886,13 +869,25 @@ class GitEnrich(Enrich):
                 }
               }
             }
-            ''' % (origin_attr, origin, attr, ",".join(['"%s"' % i for i in items]))
+            ''' % (
+            origin_attr,
+            origin,
+            attr,
+            ",".join([f'"{i}"' for i in items]),
+        )
 
-        r = self.requests.post(index + "/_delete_by_query?refresh", data=es_query, headers=HEADER_JSON, verify=False)
+        r = self.requests.post(
+            f"{index}/_delete_by_query?refresh",
+            data=es_query,
+            headers=HEADER_JSON,
+            verify=False,
+        )
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError as ex:
-            logger.error("[git] Error updating deleted commits for {}.".format(anonymize_url(index)))
+            logger.error(
+                f"[git] Error updating deleted commits for {anonymize_url(index)}."
+            )
             logger.error(r.text)
             return
 
@@ -923,7 +918,9 @@ class GitEnrich(Enrich):
         day = datetime_utcnow().day
         run_month_days = list(map(int, run_month_days))
         if day not in run_month_days:
-            logger.info("[git] study git-branches will execute only the days {} of each month".format(run_month_days))
+            logger.info(
+                f"[git] study git-branches will execute only the days {run_month_days} of each month"
+            )
             logger.info("[git] study git-branches end")
             return
 
@@ -936,29 +933,36 @@ class GitEnrich(Enrich):
             for url in urls:
                 if '--filter-no-collection=true' in url:
                     # Skip study when --filter-no-collection is present
-                    logger.info("[git] study git-branches skipping repo {}".format(anonymize_url(url)))
+                    logger.info(f"[git] study git-branches skipping repo {anonymize_url(url)}")
                     continue
                 cmd = GitCommand(*[url])
                 try:
                     git_repo = GitRepository(cmd.parsed_args.uri, cmd.parsed_args.gitpath)
                 except RepositoryError:
-                    logger.error("[git] study git-branches skipping not cloned repo {}".format(anonymize_url(url)))
+                    logger.error(
+                        f"[git] study git-branches skipping not cloned repo {anonymize_url(url)}"
+                    )
                     continue
 
-                logger.debug("[git] study git-branches delete branch info for repo {} in index {}".format(
-                             git_repo.uri, anonymize_url(enrich_backend.elastic.index_url)))
+                logger.debug(
+                    f"[git] study git-branches delete branch info for repo {git_repo.uri} in index {anonymize_url(enrich_backend.elastic.index_url)}"
+                )
                 self.delete_commit_branches(git_repo, enrich_backend)
 
-                logger.debug("[git] study git-branches add branch info for repo {} in index {}".format(
-                             git_repo.uri, anonymize_url(enrich_backend.elastic.index_url)))
+                logger.debug(
+                    f"[git] study git-branches add branch info for repo {git_repo.uri} in index {anonymize_url(enrich_backend.elastic.index_url)}"
+                )
                 try:
                     self.add_commit_branches(git_repo, enrich_backend)
                 except Exception as e:
-                    logger.error("[git] study git-branches failed on repo {}, due to {}".format(git_repo.uri, e))
+                    logger.error(
+                        f"[git] study git-branches failed on repo {git_repo.uri}, due to {e}"
+                    )
                     continue
 
-                logger.debug("[git] study git-branches repo {} in index {} processed".format(
-                             git_repo.uri, anonymize_url(enrich_backend.elastic.index_url)))
+                logger.debug(
+                    f"[git] study git-branches repo {git_repo.uri} in index {anonymize_url(enrich_backend.elastic.index_url)} processed"
+                )
 
         logger.info("[git] study git-branches end")
 
@@ -995,15 +999,20 @@ class GitEnrich(Enrich):
             """ % fltr
 
         index = enrich_backend.elastic.index_url
-        r = self.requests.post(index + "/_update_by_query?refresh", data=es_query, headers=HEADER_JSON, verify=False)
+        r = self.requests.post(
+            f"{index}/_update_by_query?refresh",
+            data=es_query,
+            headers=HEADER_JSON,
+            verify=False,
+        )
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            logger.error("[git] Error while deleting branches on {}".format(anonymize_url(index)))
+            logger.error(f"[git] Error while deleting branches on {anonymize_url(index)}")
             logger.error(r.text)
             return
 
-        logger.debug("[git] Delete branches {}, index {}".format(r.text, anonymize_url(index)))
+        logger.debug(f"[git] Delete branches {r.text}, index {anonymize_url(index)}")
 
     def add_commit_branches(self, git_repo, enrich_backend):
         """Add the information about branches to the documents representing commits in
@@ -1041,20 +1050,26 @@ class GitEnrich(Enrich):
                     self.__process_commits_in_branch(enrich_backend, git_repo.uri, branch_name, to_process)
 
             except Exception as e:
-                logger.error("[git] Skip adding branch info for repo {} due to {}".format(git_repo.uri, e))
+                logger.error(
+                    f"[git] Skip adding branch info for repo {git_repo.uri} due to {e}"
+                )
                 return
 
     def __process_commits_in_branch(self, enrich_backend, repo_origin, branch_name, commits):
-        commits_str = ",".join(['"%s"' % c for c in commits])
+        commits_str = ",".join([f'"{c}"' for c in commits])
 
         # process branch names which include quotes or single quote
         digested_branch_name = branch_name
         if "'" in branch_name:
             digested_branch_name = branch_name.replace("'", "---")
-            logger.warning("[git] Change branch name from {} to {}".format(branch_name, digested_branch_name))
+            logger.warning(
+                f"[git] Change branch name from {branch_name} to {digested_branch_name}"
+            )
         if '"' in branch_name:
             digested_branch_name = branch_name.replace('"', "---")
-            logger.warning("[git] Change branch name from {} to {}".format(branch_name, digested_branch_name))
+            logger.warning(
+                f"[git] Change branch name from {branch_name} to {digested_branch_name}"
+            )
 
         # update enrich index
         fltr = self.__prepare_filter("hash", commits_str, anonymize_url(repo_origin))
@@ -1077,18 +1092,23 @@ class GitEnrich(Enrich):
             """ % (digested_branch_name, fltr)
 
         index = enrich_backend.elastic.index_url
-        r = self.requests.post(index + "/_update_by_query?refresh", data=es_query, headers=HEADER_JSON, verify=False)
+        r = self.requests.post(
+            f"{index}/_update_by_query?refresh",
+            data=es_query,
+            headers=HEADER_JSON,
+            verify=False,
+        )
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            logger.error("[git] Error adding branch info for {}".format(anonymize_url(index)))
+            logger.error(f"[git] Error adding branch info for {anonymize_url(index)}")
             logger.error(r.text)
             return
 
-        logger.debug("[git] Add branches {}, index {}".format(r.text, anonymize_url(index)))
+        logger.debug(f"[git] Add branches {r.text}, index {anonymize_url(index)}")
 
     def __prepare_filter(self, terms_attr, terms_value, repo_origin):
-        fltr = """
+        return """
             "filter": [
                 {
                     "terms": {
@@ -1101,6 +1121,8 @@ class GitEnrich(Enrich):
                     }
                 }
             ]
-        """ % (terms_attr, terms_value, repo_origin)
-
-        return fltr
+        """ % (
+            terms_attr,
+            terms_value,
+            repo_origin,
+        )

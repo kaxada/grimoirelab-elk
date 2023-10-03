@@ -60,7 +60,7 @@ class TestMediawiki(TestBaseBackend):
 
         eitems = []
         for item in self.items:
-            eitems.extend([ei for ei in enrich_backend.get_rich_item_reviews(item)])
+            eitems.extend(list(enrich_backend.get_rich_item_reviews(item)))
 
         eitem = eitems[0]
         self.assertEqual(eitem['url'], 'https://wiki.mozilla.org/Main_Page/QA/NoMore404s')
@@ -182,7 +182,7 @@ class TestMediawiki(TestBaseBackend):
 
         enrich_backend = self.connectors[self.connector][2]()
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']

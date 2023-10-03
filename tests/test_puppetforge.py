@@ -72,7 +72,7 @@ class TestPuppetForge(TestBaseBackend):
 
         enrich_backend = self.connectors[self.connector][2]()
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']

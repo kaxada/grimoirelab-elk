@@ -58,10 +58,6 @@ class LaunchpadOcean(ElasticOcean):
         params = []
         splits = url.split('/')
         if '+source' in url:
-            params.append(splits[-3])
-            params.append('--package')
-            params.append(splits[-1])
-        else:
-            params.append(splits[-1])
-
+            params.extend((splits[-3], '--package'))
+        params.append(splits[-1])
         return params

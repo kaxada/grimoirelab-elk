@@ -47,7 +47,7 @@ class GitHubIdentities(Identities):
             if not item[identity]:
                 continue
 
-            identity_attr = identity + "_data"
+            identity_attr = f"{identity}_data"
 
             item[identity] = {
                 'login': cls._hash(item[identity]['login'])

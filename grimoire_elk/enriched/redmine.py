@@ -70,29 +70,23 @@ class RedmineEnrich(Enrich):
 
         data = item['data']
         if 'assigned_to' in data:
-            user = self.get_sh_identity(data, 'assigned_to')
-            yield user
-        author = self.get_sh_identity(data, 'author')
-        yield author
+            yield self.get_sh_identity(data, 'assigned_to')
+        yield self.get_sh_identity(data, 'author')
         # TODO: identities in journals not added yet
 
     def get_field_author(self):
         return "author"
 
     def get_sh_identity(self, data, rol):
-        identity = {}
-
-        identity['email'] = None
-        identity['username'] = None
-        identity['name'] = None
+        identity = {'email': None, 'username': None, 'name': None}
 
         if 'data' in data:
             # data is the full raw item from perceval
             data = data['data']
 
-        if rol + "_data" in data:
-            if 'mail' in data[rol + "_data"]:
-                identity['email'] = data[rol + "_data"]['mail']
+        if f"{rol}_data" in data:
+            if 'mail' in data[f"{rol}_data"]:
+                identity['email'] = data[f"{rol}_data"]['mail']
         if rol in data:
             identity['username'] = data[rol]['id']
             identity['name'] = data[rol]['name']
@@ -113,10 +107,7 @@ class RedmineEnrich(Enrich):
                        "id", "spent_hours", "start_date", "subject",
                        "last_update"]
         for f in copy_fields:
-            if f in ticket:
-                eitem[f] = ticket[f]
-            else:
-                eitem[f] = None
+            eitem[f] = ticket[f] if f in ticket else None
         eitem['subject'] = eitem['subject'][:self.KEYWORD_MAX_LENGTH]
         eitem['subject_analyzed'] = eitem['subject']
 
@@ -136,8 +127,8 @@ class RedmineEnrich(Enrich):
                   'tracker', 'author']
         for f in common:
             if f in ticket:
-                eitem[f + '_id'] = ticket[f]['id']
-                eitem[f + '_name'] = ticket[f]['name']
+                eitem[f'{f}_id'] = ticket[f]['id']
+                eitem[f'{f}_name'] = ticket[f]['name']
 
         len_fields = ['attachments', 'changesets', 'journals', 'relations']
         for f in len_fields:
@@ -152,14 +143,14 @@ class RedmineEnrich(Enrich):
         # Time to
         if "closing_date" in eitem:
             eitem['timeopen_days'] = \
-                get_time_diff_days(eitem['creation_date'], eitem['closing_date'])
+                    get_time_diff_days(eitem['creation_date'], eitem['closing_date'])
             eitem['timeworking_days'] = \
-                get_time_diff_days(eitem['start_date'], eitem['closing_date'])
+                    get_time_diff_days(eitem['start_date'], eitem['closing_date'])
         else:
             eitem['timeopen_days'] = \
-                get_time_diff_days(eitem['creation_date'], datetime_utcnow().replace(tzinfo=None))
+                    get_time_diff_days(eitem['creation_date'], datetime_utcnow().replace(tzinfo=None))
             eitem['timeworking_days'] = \
-                get_time_diff_days(eitem['start_date'], datetime_utcnow().replace(tzinfo=None))
+                    get_time_diff_days(eitem['start_date'], datetime_utcnow().replace(tzinfo=None))
 
         eitem.update(self.get_grimoire_fields(item["metadata__updated_on"], "job"))
 

@@ -130,12 +130,8 @@ class JenkinsOcean(ElasticOcean):
 
     @classmethod
     def get_p2o_params_from_url(cls, url):
-        # Jenkins could include in the URL a jenkins-rename-file T1746
-        params = {}
-
         tokens = url.split(' ')  # Just split the URL not the filter
-        params['url'] = tokens[0]
-
+        params = {'url': tokens[0]}
         if len(tokens) == 1:
             return params
 
@@ -154,9 +150,6 @@ class JenkinsOcean(ElasticOcean):
 
     @classmethod
     def get_perceval_params_from_url(cls, url):
-        params = []
         tokens = url.split(' ', 1)  # Just split the URL not jenkins-rename-file
         url = tokens[0]
-        params.append(url)
-
-        return params
+        return [url]

@@ -63,8 +63,4 @@ class Database:
         #                   prj_db = self.prjdb)
 
         results = int(self.cursor.execute(query))
-        if results > 0:
-            result1 = self.cursor.fetchall()
-            return result1
-        else:
-            return []
+        return self.cursor.fetchall() if results > 0 else []

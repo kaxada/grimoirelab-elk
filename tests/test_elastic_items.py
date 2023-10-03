@@ -63,7 +63,7 @@ class TestElasticItems(unittest.TestCase):
         cls.es_con = dict(cls.config.items('ElasticSearch'))['url']
 
     def tearDown(self):
-        target_index_url = self.es_con + "/" + self.target_index
+        target_index_url = f"{self.es_con}/{self.target_index}"
         requests.delete(target_index_url, verify=False)
 
     def test_init(self):
@@ -391,7 +391,7 @@ class TestElasticItems(unittest.TestCase):
         eitems.scroll_size = 2
         eitems.elastic = elastic
 
-        items = [ei for ei in eitems.fetch()]
+        items = list(eitems.fetch())
         self.assertEqual(len(items), 9)
 
     def test_fetch_from_date(self):
@@ -409,14 +409,14 @@ class TestElasticItems(unittest.TestCase):
         # Fetch total items
         eitems = ElasticItems(perceval_backend)
         eitems.elastic = elastic
-        items = [ei for ei in eitems.fetch()]
+        items = list(eitems.fetch())
         self.assertEqual(len(items), 9)
 
         # Fetch with from date
         from_date = str_to_datetime("2018-02-09T08:33:22.699+00:00")
         eitems = ElasticItems(perceval_backend, from_date=from_date)
         eitems.elastic = elastic
-        items = [ei for ei in eitems.fetch()]
+        items = list(eitems.fetch())
         self.assertEqual(len(items), 2)
 
     def test_fetch_from_offset(self):
@@ -434,13 +434,13 @@ class TestElasticItems(unittest.TestCase):
         # Fetch total items
         eitems = ElasticItems(perceval_backend)
         eitems.elastic = elastic
-        items = [ei for ei in eitems.fetch()]
+        items = list(eitems.fetch())
         self.assertEqual(len(items), 4)
 
         # Fetch with offset
         eitems = ElasticItems(perceval_backend, offset=2)
         eitems.elastic = elastic
-        items = [ei for ei in eitems.fetch()]
+        items = list(eitems.fetch())
         self.assertEqual(len(items), 2)
 
     def test_fetch_no_results(self):
@@ -459,7 +459,7 @@ class TestElasticItems(unittest.TestCase):
         eitems.elastic = elastic
 
         with self.assertLogs(logger, level='DEBUG') as cm:
-            items = [ei for ei in eitems.fetch()]
+            items = list(eitems.fetch())
             self.assertEqual(len(items), 0)
             self.assertRegex(cm.output[-2], 'DEBUG:grimoire_elk.elastic_items:No results found.*')
             self.assertRegex(cm.output[-1], 'DEBUG:grimoire_elk.elastic_items:Releasing scroll_id=*')
@@ -468,7 +468,7 @@ class TestElasticItems(unittest.TestCase):
         """Test whether the fetch method returns an empty list when the index is empty"""
 
         eitems = ElasticItems(self.perceval_backend)
-        items = [ei for ei in eitems.fetch()]
+        items = list(eitems.fetch())
         self.assertEqual(items, [])
 
     def test_fetch_filter_raw(self):
@@ -486,7 +486,7 @@ class TestElasticItems(unittest.TestCase):
         eitems = ElasticItems(perceval_backend)
         eitems.set_filter_raw("data.commit:87783129c3f00d2c81a3a8e585eb86a47e39891a")
         eitems.elastic = elastic
-        items = [ei for ei in eitems.fetch()]
+        items = list(eitems.fetch())
         self.assertEqual(len(items), 1)
 
     def test_get_elastic_items(self):

@@ -327,9 +327,7 @@ def get_kibiter_version(url):
         return None
 
     version = r.json()['hits']['hits'][0]['_id']
-    # 5.4.0-SNAPSHOT
-    major_version = version.split(".", 1)[0]
-    return major_version
+    return version.split(".", 1)[0]
 
 
 def config_logging(debug):

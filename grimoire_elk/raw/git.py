@@ -68,9 +68,6 @@ class GitOcean(ElasticOcean):
 
     @classmethod
     def get_perceval_params_from_url(cls, url):
-        params = []
         tokens = url.split(' ', 1)  # Just split the URL not the filter
         url = tokens[0]
-        params.append(url)
-
-        return params
+        return [url]

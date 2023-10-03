@@ -59,7 +59,7 @@ class TestCoSmellsDocker(TestBaseBackend):
         self.assertGreater(result['enrich'], 0)
         self.assertGreaterEqual(result['enrich'], result['raw'])
 
-        items = [item for item in self.enrich_backend.fetch()]
+        items = list(self.enrich_backend.fetch())
 
         item = items[0]
         self.assertEqual(item['file_path'], 'tests/Dockerfile')
@@ -93,7 +93,7 @@ class TestCoSmellsDocker(TestBaseBackend):
         """Test enrich with Projects"""
 
         result = self._test_raw_to_enrich(projects=True)
-        items = [item for item in self.enrich_backend.fetch()]
+        items = list(self.enrich_backend.fetch())
 
         item = items[0]
         self.assertEqual(item['file_path'], 'tests/Dockerfile')

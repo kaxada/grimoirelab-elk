@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 def create_fake_identities():
     identities = []
 
-    for i in range(10):
+    for _ in range(10):
         username = ''.join(random.choice(string.ascii_lowercase) for _ in range(random.randint(10, 15)))
         email = ''.join(random.choice(string.ascii_lowercase) for _ in range(random.randint(10, 15))) + "@mail.com"
         name = ''.join(random.choice(string.ascii_lowercase) for _ in range(random.randint(10, 20)))
@@ -86,7 +86,7 @@ class TestLoadIdentities(unittest.TestCase):
         start = datetime.datetime.now().timestamp()
         new_identities = []
 
-        for i in range(items):
+        for _ in range(items):
             items_count += 1
             identities = create_fake_identities()
 

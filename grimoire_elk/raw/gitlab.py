@@ -98,9 +98,7 @@ class GitLabOcean(ElasticOcean):
         owner = repo.split('/')[-2]
         repository = repo.split('/')[-1]
 
-        params.append(owner)
-        params.append(repository)
-
+        params.extend((owner, repository))
         if len(tokens) > 1:
             params.extend(tokens[1:])
 

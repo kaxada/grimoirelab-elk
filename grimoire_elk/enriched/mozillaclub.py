@@ -98,30 +98,21 @@ class MozillaClubEnrich(Enrich):
     def get_identities(self, item):
         """Return the identities from an item"""
 
-        user = self.get_sh_identity(item, self.get_field_author())
-        yield user
+        yield self.get_sh_identity(item, self.get_field_author())
 
     def get_sh_identity(self, item, identity_field):
-        identity = {}
-
-        identity['username'] = item['data'][identity_field]
-        identity['email'] = None
-        identity['name'] = item['data'][identity_field]
-
-        return identity
+        return {
+            'username': item['data'][identity_field],
+            'email': None,
+            'name': item['data'][identity_field],
+        }
 
     @metadata
     def get_rich_item(self, item):
-        eitem = {}
-
         # metadata fields to copy
         copy_fields = ["metadata__updated_on", "metadata__timestamp",
                        "origin", "uuid"]
-        for f in copy_fields:
-            if f in item:
-                eitem[f] = item[f]
-            else:
-                eitem[f] = None
+        eitem = {f: item[f] if f in item else None for f in copy_fields}
         # The real data
         event = item['data']
 
@@ -173,7 +164,9 @@ class MozillaClubEnrich(Enrich):
 
         url = self.elastic.get_bulk_url()
 
-        logger.debug("[mozillaclub] Adding items to {} (in {} packs)".format(anonymize_url(url), max_items))
+        logger.debug(
+            f"[mozillaclub] Adding items to {anonymize_url(url)} (in {max_items} packs)"
+        )
 
         items = ocean_backend.fetch()
         for item in items:
@@ -185,7 +178,7 @@ class MozillaClubEnrich(Enrich):
             rich_item = self.get_rich_item(item)
             data_json = json.dumps(rich_item)
             bulk_json += '{"index" : {"_id" : "%s" } }\n' % \
-                (item[self.get_field_unique_id()])
+                    (item[self.get_field_unique_id()])
             bulk_json += data_json + "\n"  # Bulk document
             current += 1
 

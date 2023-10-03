@@ -72,21 +72,16 @@ class AskbotEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        # question
-        user = self.get_sh_identity(item, self.get_field_author())
-        yield user
-
+        yield self.get_sh_identity(item, self.get_field_author())
         # answers
         if 'answers' in item['data']:
             for answer in item['data']['answers']:
                 # avoid "answered_by" : "This post is a wiki" corner case
                 if type(answer['answered_by']) is dict:
-                    user = self.get_sh_identity(answer['answered_by'])
-                    yield user
+                    yield self.get_sh_identity(answer['answered_by'])
                 if 'comments' in answer:
                     for comment in answer['comments']:
-                        commenter = self.get_sh_identity(comment)
-                        yield commenter
+                        yield self.get_sh_identity(comment)
 
     def get_sh_identity(self, item, identity_field=None):
         identity = {key: None for key in ['username', 'name', 'email']}
@@ -131,21 +126,14 @@ class AskbotEnrich(Enrich):
         # Fields that are the same in item and eitem
         copy_fields = ["id", "url", "title", "summary", "score"]
         for f in copy_fields:
-            if f in question:
-                eitem[f] = question[f]
-            else:
-                eitem[f] = None
+            eitem[f] = question[f] if f in question else None
         # Fields which names are translated
         map_fields = {"title": "question_title",
                       "answer_count": "question_answer_count",
                       "view_count": "question_view_count",
                       "answer_ids": "question_answer_ids"}
         for fn in map_fields:
-            if fn in question:
-                eitem[map_fields[fn]] = question[fn]
-            else:
-                eitem[map_fields[fn]] = None
-
+            eitem[map_fields[fn]] = question[fn] if fn in question else None
         # Cast id of question to string
         eitem['id'] = str(eitem['id'])
         eitem['score'] = int(eitem['score']) if eitem['score'] else 0
@@ -179,7 +167,10 @@ class AskbotEnrich(Enrich):
 
         eitem['comment_count'] = 0
         if 'answers' in question:
-            eitem['comment_count'] = sum([len(a['comments']) if 'comments' in a else 0 for a in question['answers']])
+            eitem['comment_count'] = sum(
+                len(a['comments']) if 'comments' in a else 0
+                for a in question['answers']
+            )
 
         if self.sortinghat:
             eitem.update(self.get_item_sh(item))
@@ -199,10 +190,7 @@ class AskbotEnrich(Enrich):
 
     def get_users_data(self, askbot_item):
         """ Adapt the data to be used with standard SH enrich API """
-        # askbot_item could be a raw question, answer or comment
-        poster = {}
-        poster[self.get_field_author()] = askbot_item
-        return poster
+        return {self.get_field_author(): askbot_item}
 
     def get_rich_comment(self, item, answer, comment):
         ecomment = self.get_rich_item(item)  # reuse all fields from item
@@ -223,10 +211,7 @@ class AskbotEnrich(Enrich):
             ecomment['summary'] = comment['summary']
         ecomment['score'] = int(comment['score']) if comment['score'] else 0
 
-        dfield = 'added_at'
-        if 'comment_added_at' in comment:
-            dfield = 'comment_added_at'
-
+        dfield = 'comment_added_at' if 'comment_added_at' in comment else 'added_at'
         if self.sortinghat:
             if dfield == 'added_at':
                 comment['added_at_date'] = unixtime_to_datetime(float(comment[dfield])).isoformat()
@@ -234,8 +219,9 @@ class AskbotEnrich(Enrich):
                 comment['added_at_date'] = comment[dfield]
             ecomment.update(self.get_item_sh(comment, date_field="added_at_date"))
             if ecomment['author_user_name'] != ecomment['author_askbot_user_name']:
-                logger.warning('[asknot] Bad SH identity in askbot comment. Found {} expecting {}'.format(
-                               ecomment['author_user_name'], ecomment['author_askbot_user_name']))
+                logger.warning(
+                    f"[asknot] Bad SH identity in askbot comment. Found {ecomment['author_user_name']} expecting {ecomment['author_askbot_user_name']}"
+                )
 
         if dfield == 'added_at':
             comment_at = unixtime_to_datetime(float(comment[dfield]))
@@ -279,8 +265,9 @@ class AskbotEnrich(Enrich):
             answer['added_at_date'] = unixtime_to_datetime(float(answer["added_at"])).isoformat()
             eanswer.update(self.get_item_sh(answer, date_field="added_at_date"))
             if 'author_askbot_user_name' in eanswer and eanswer['author_user_name'] != eanswer['author_askbot_user_name']:
-                logger.warning('[askbot] Bad SH identity in askbot answer. Found {} expecting {}'.format(
-                               eanswer['author_user_name'], eanswer['author_askbot_user_name']))
+                logger.warning(
+                    f"[askbot] Bad SH identity in askbot answer. Found {eanswer['author_user_name']} expecting {eanswer['author_askbot_user_name']}"
+                )
         answer_at = unixtime_to_datetime(float(answer["added_at"]))
         added_at = unixtime_to_datetime(float(item['data']["added_at"]))
         eanswer['time_from_question'] = get_time_diff_days(added_at, answer_at)
@@ -339,8 +326,8 @@ class AskbotEnrich(Enrich):
 
         if num_items != ins_items:
             missing = num_items - ins_items
-            logger.error("[askbot] {}/{} missing items for Askbot".format(missing, num_items))
+            logger.error(f"[askbot] {missing}/{num_items} missing items for Askbot")
         else:
-            logger.info("[askbot] {} items inserted for Askbot".format(num_items))
+            logger.info(f"[askbot] {num_items} items inserted for Askbot")
 
         return num_items

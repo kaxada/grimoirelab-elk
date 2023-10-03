@@ -49,9 +49,7 @@ def get_params_parser_create_dash():
 
 def get_params():
     parser = get_params_parser_create_dash()
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 
 if __name__ == '__main__':

@@ -56,10 +56,6 @@ class GitHubQLOcean(ElasticOcean):
     @classmethod
     def get_perceval_params_from_url(cls, url):
         """ Get the perceval params given a URL for the data source """
-        params = []
-
         owner = url.split('/')[-2]
         repository = url.split('/')[-1]
-        params.append(owner)
-        params.append(repository)
-        return params
+        return [owner, repository]

@@ -80,8 +80,7 @@ class GitLabEnrich(Enrich):
                          db_user, db_password, db_host)
 
         self.users = {}  # cache users
-        self.studies = []
-        self.studies.append(self.enrich_onion)
+        self.studies = [self.enrich_onion]
 
     def set_elastic(self, elastic):
         self.elastic = elastic
@@ -99,8 +98,7 @@ class GitLabEnrich(Enrich):
         item = item['data']
         for identity in self.issue_roles:
             if item[identity]:
-                user = self.get_sh_identity(item[identity])
-                if user:
+                if user := self.get_sh_identity(item[identity]):
                     yield user
 
     def get_sh_identity(self, item, identity_field=None):
@@ -123,8 +121,7 @@ class GitLabEnrich(Enrich):
         return identity
 
     def get_project_repository(self, eitem):
-        repo = eitem['origin']
-        return repo
+        return eitem['origin']
 
     def get_time_to_first_attention(self, item):
         """Get the first date at which a comment or reaction was made to the issue by someone
@@ -135,9 +132,7 @@ class GitLabEnrich(Enrich):
         reaction_dates = [str_to_datetime(reaction['created_at']).replace(tzinfo=None) for reaction
                           in item['award_emoji_data'] if item['author']['username'] != reaction['user']['username']]
         reaction_dates.extend(comment_dates)
-        if reaction_dates:
-            return min(reaction_dates)
-        return None
+        return min(reaction_dates, default=None)
 
     @metadata
     def get_rich_item(self, item):
@@ -148,7 +143,9 @@ class GitLabEnrich(Enrich):
         elif item['category'] == 'merge_request':
             rich_item = self.__get_rich_merge(item)
         else:
-            logger.error("[gerrit] rich item not defined for GitLab category {}".format(item['category']))
+            logger.error(
+                f"[gerrit] rich item not defined for GitLab category {item['category']}"
+            )
 
         self.add_repository_labels(rich_item)
         self.add_metadata_filter_raw(rich_item)
@@ -163,16 +160,15 @@ class GitLabEnrich(Enrich):
         issue = item['data']
 
         rich_issue['time_to_close_days'] = \
-            get_time_diff_days(issue['created_at'], issue['closed_at'])
+                get_time_diff_days(issue['created_at'], issue['closed_at'])
 
         if issue['state'] != 'closed':
             rich_issue['time_open_days'] = \
-                get_time_diff_days(issue['created_at'], datetime.utcnow())
+                    get_time_diff_days(issue['created_at'], datetime.utcnow())
         else:
             rich_issue['time_open_days'] = rich_issue['time_to_close_days']
 
-        author = issue.get('author', None)
-        if author:
+        if author := issue.get('author', None):
             rich_issue['author_username'] = issue['author']['username']
             rich_issue['author_name'] = author['name']
             if 'email' in author and author['email']:
@@ -234,7 +230,7 @@ class GitLabEnrich(Enrich):
         rich_issue['time_to_first_attention'] = None
         if len(issue['notes_data']) + len(issue['award_emoji_data']) != 0:
             rich_issue['time_to_first_attention'] = \
-                get_time_diff_days(issue['created_at'], self.get_time_to_first_attention(issue))
+                    get_time_diff_days(issue['created_at'], self.get_time_to_first_attention(issue))
 
         rich_issue.update(self.get_grimoire_fields(issue['created_at'], "issue"))
 
@@ -260,12 +256,11 @@ class GitLabEnrich(Enrich):
 
         if merge_request['state'] not in ['merged', 'closed']:
             rich_mr['time_open_days'] = \
-                get_time_diff_days(merge_request['created_at'], datetime.utcnow())
+                    get_time_diff_days(merge_request['created_at'], datetime.utcnow())
         else:
             rich_mr['time_open_days'] = rich_mr['time_to_close_days']
 
-        author = merge_request.get('author', None)
-        if author:
+        if author := merge_request.get('author', None):
             rich_mr['author_username'] = merge_request['author']['username']
             rich_mr['author_name'] = author.get('name', None)
             if 'email' in author and author['email']:
@@ -332,7 +327,7 @@ class GitLabEnrich(Enrich):
         rich_mr['time_to_first_attention'] = None
         if len(merge_request['notes_data']) + len(merge_request['award_emoji_data']) != 0:
             rich_mr['time_to_first_attention'] = \
-                get_time_diff_days(merge_request['created_at'], self.get_time_to_first_attention(merge_request))
+                    get_time_diff_days(merge_request['created_at'], self.get_time_to_first_attention(merge_request))
 
         self.__add_milestone_info(merge_request, rich_mr)
 
@@ -387,8 +382,9 @@ class GitLabEnrich(Enrich):
             raise ELKError(cause="Missing data_source attribute")
 
         if data_source not in [GITLAB_MERGES, GITLAB_ISSUES]:
-            logger.warning("[gitlab] data source value {} should be: {} or {}".format(
-                           data_source, GITLAB_ISSUES, GITLAB_MERGES))
+            logger.warning(
+                f"[gitlab] data source value {data_source} should be: {GITLAB_ISSUES} or {GITLAB_MERGES}"
+            )
 
         super().enrich_onion(enrich_backend=enrich_backend,
                              in_index=in_index,

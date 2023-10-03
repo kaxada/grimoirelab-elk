@@ -249,13 +249,11 @@ class SlackEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        identity = self.get_sh_identity(item)
-        yield identity
+        yield self.get_sh_identity(item)
 
     def get_project_repository(self, eitem):
         repo = eitem['origin']
-        repo = repo.replace(SLACK_URL, "")  # only the channel id is included for the mapping
-        return repo
+        return repo.replace(SLACK_URL, "")
 
     @metadata
     def get_rich_item(self, item):
@@ -272,11 +270,7 @@ class SlackEnrich(Enrich):
         copy_fields = ["text", "type", "reply_count", "subscribed", "subtype",
                        "unread_count", "user"]
         for f in copy_fields:
-            if f in message:
-                eitem[f] = message[f]
-            else:
-                eitem[f] = None
-
+            eitem[f] = message[f] if f in message else None
         eitem['text_analyzed'] = eitem['text']
 
         eitem['number_attachs'] = 0
@@ -296,14 +290,12 @@ class SlackEnrich(Enrich):
                 #         ],
                 #         "name": "+1"
                 # }
-                for i in range(0, rdata['count']):
+                for _ in range(0, rdata['count']):
                     eitem['reactions'].append(rdata["name"])
 
         if 'files' in message:
             eitem['number_files'] = len(message['files'])
-            message_file_size = 0
-            for file in message['files']:
-                message_file_size += file.get('size', 0)
+            message_file_size = sum(file.get('size', 0) for file in message['files'])
             eitem['message_file_size'] = message_file_size
 
         if 'user_data' in message and message['user_data']:
@@ -338,9 +330,9 @@ class SlackEnrich(Enrich):
             eitem['channel_purpose'] = channel['purpose']
         channel_bool_fields = ['is_archived', 'is_general', 'is_starred']
         for field in channel_bool_fields:
-            eitem['channel_' + field] = 0
+            eitem[f'channel_{field}'] = 0
             if field in channel and channel[field]:
-                eitem['channel_' + field] = 1
+                eitem[f'channel_{field}'] = 1
 
         eitem = self.__convert_booleans(eitem)
 
@@ -361,8 +353,5 @@ class SlackEnrich(Enrich):
 
         for field in eitem.keys():
             if isinstance(eitem[field], bool):
-                if eitem[field]:
-                    eitem[field] = 1
-                else:
-                    eitem[field] = 0
+                eitem[field] = 1 if eitem[field] else 0
         return eitem  # not needed becasue we are modifying directly the dict

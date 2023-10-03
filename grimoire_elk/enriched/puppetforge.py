@@ -42,13 +42,10 @@ class PuppetForgeEnrich(Enrich):
     def get_identities(self, item):
         """ Return the identities from an item """
 
-        user = self.get_sh_identity(item, self.get_field_author())
-        yield user
-
+        yield self.get_sh_identity(item, self.get_field_author())
         # Get the identities from the releases
         for release in item['data']['releases']:
-            user = self.get_sh_identity(release['module'], self.get_field_author())
-            yield user
+            yield self.get_sh_identity(release['module'], self.get_field_author())
 
     def get_field_author(self):
         return 'owner'
@@ -83,10 +80,7 @@ class PuppetForgeEnrich(Enrich):
         copy_fields = ["downloads", "uri", "name", "slug", "issues_url",
                        "homepage_url"]
         for f in copy_fields:
-            if f in entry:
-                eitem[f] = entry[f]
-            else:
-                eitem[f] = None
+            eitem[f] = entry[f] if f in entry else None
         # Fields which names are translated
         map_fields = {"feedback_score": "module_feedback_score",
                       "uri": "module_uri",

@@ -285,7 +285,7 @@ class TestGitHubQL(TestBaseBackend):
 
         enrich_backend = self.connectors[self.connector][2]()
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']
@@ -321,7 +321,7 @@ class TestGitHubQL(TestBaseBackend):
 
         enrich_backend = self.connectors[self.connector][2]()
 
-        url = self.es_con + "/" + self.enrich_index + "/_search"
+        url = f"{self.es_con}/{self.enrich_index}/_search"
         response = enrich_backend.requests.get(url, verify=False).json()
         for hit in response['hits']['hits']:
             source = hit['_source']
@@ -399,19 +399,21 @@ class TestGitHubQL(TestBaseBackend):
             if study.__name__ == "enrich_reference_analysis":
                 study(ocean_backend, enrich_backend)
 
-            self.assertEqual(cm.output[0], 'INFO:grimoire_elk.enriched.githubql:[githubql] Cross reference analysis '
-                                           'starting study %s/test_githubql_enrich'
-                             % anonymize_url(self.es_con))
-            self.assertEqual(cm.output[-1], 'INFO:grimoire_elk.enriched.githubql:[githubql] Cross reference analysis '
-                                            'ending study %s/test_githubql_enrich'
-                             % anonymize_url(self.es_con))
+            self.assertEqual(
+                cm.output[0],
+                f'INFO:grimoire_elk.enriched.githubql:[githubql] Cross reference analysis starting study {anonymize_url(self.es_con)}/test_githubql_enrich',
+            )
+            self.assertEqual(
+                cm.output[-1],
+                f'INFO:grimoire_elk.enriched.githubql:[githubql] Cross reference analysis ending study {anonymize_url(self.es_con)}/test_githubql_enrich',
+            )
 
         time.sleep(5)  # HACK: Wait until github enrich index has been written
-        referenced_items = []
-        for item in enrich_backend.fetch():
-            if ('referenced_by_issues' or 'referenced_by_prs') in item.keys():
-                referenced_items.append(item)
-
+        referenced_items = [
+            item
+            for item in enrich_backend.fetch()
+            if ('referenced_by_issues' or 'referenced_by_prs') in item.keys()
+        ]
         self.assertEqual(len(referenced_items), 7)
 
         for item in referenced_items:

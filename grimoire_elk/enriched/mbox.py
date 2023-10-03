@@ -81,8 +81,7 @@ class MBoxEnrich(Enrich):
         item = item['data']
         for identity in ['From']:
             if identity in item and item[identity]:
-                user = self.get_sh_identity(item[identity])
-                yield user
+                yield self.get_sh_identity(item[identity])
 
     def get_sh_identity(self, item, identity_field=None):
         # "From": "hwalsh at wikiledia.net (Heat Walsh)"
@@ -114,8 +113,8 @@ class MBoxEnrich(Enrich):
         mls_list = eitem['origin']
         # This should be configurable
         mboxes_dir = '/home/bitergia/mboxes/'
-        repo = mls_list + " " + mboxes_dir
-        repo += mls_list + ".mbox/" + mls_list + ".mbox"
+        repo = f"{mls_list} {mboxes_dir}"
+        repo += f"{mls_list}.mbox/{mls_list}.mbox"
         return repo
 
     @metadata
@@ -129,20 +128,13 @@ class MBoxEnrich(Enrich):
         # Fields that are the same in message and eitem
         copy_fields = ["Date", "Subject", "Message-ID"]
         for f in copy_fields:
-            if f in message:
-                eitem[f] = message[f]
-            else:
-                eitem[f] = None
+            eitem[f] = message[f] if f in message else None
         # Fields which names are translated
         map_fields = {
             "Subject": "Subject_analyzed"
         }
         for fn in map_fields:
-            if fn in message:
-                eitem[map_fields[fn]] = message[fn]
-            else:
-                eitem[map_fields[fn]] = None
-
+            eitem[map_fields[fn]] = message[fn] if fn in message else None
         # Enrich dates
         eitem["email_date"] = str_to_datetime(item["metadata__updated_on"]).isoformat()
         eitem["list"] = item["origin"]
@@ -151,11 +143,7 @@ class MBoxEnrich(Enrich):
             eitem['Subject'] = eitem['Subject'][:self.KEYWORD_MAX_LENGTH]
 
         # Root message
-        if 'In-Reply-To' in message:
-            eitem["root"] = False
-        else:
-            eitem["root"] = True
-
+        eitem["root"] = 'In-Reply-To' not in message
         # Part of the body is needed in studies like kafka_kip
         eitem["body_extract"] = ""
         # Size of the message
@@ -169,7 +157,7 @@ class MBoxEnrich(Enrich):
         # Time zone
         try:
             message_date = str_to_datetime(message['Date'])
-            eitem["tz"] = int(message_date.strftime("%z")[0:3])
+            eitem["tz"] = int(message_date.strftime("%z")[:3])
         except Exception:
             eitem["tz"] = None
 
@@ -210,7 +198,9 @@ class MBoxEnrich(Enrich):
 
         url = self.elastic.get_bulk_url()
 
-        logger.debug("[mbox] Adding items to {} (in {} packs)".format(anonymize_url(url), max_items))
+        logger.debug(
+            f"[mbox] Adding items to {anonymize_url(url)} (in {max_items} packs)"
+        )
 
         for item in items:
             if current >= max_items:
@@ -221,7 +211,7 @@ class MBoxEnrich(Enrich):
             rich_item = self.get_rich_item(item)
             data_json = json.dumps(rich_item)
             bulk_json += '{"index" : {"_id" : "%s" } }\n' % \
-                (rich_item[self.get_field_unique_id()])
+                    (rich_item[self.get_field_unique_id()])
             bulk_json += data_json + "\n"  # Bulk document
             current += 1
 
